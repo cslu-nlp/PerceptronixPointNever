@@ -3,9 +3,11 @@ Perceptronix Point Never
 
 This is an implementation of part-of-speech tagging using the averaged 
 percetron to train an HMM, as described in Collins 2002. As in Collins'
-paper, the features used are the same as those used by Ratnaparkhi (1996). 
-While this is unlikely to be fast (per se), every effort to optimize has 
-been taken.
+paper, the features used are the same as those used by Ratnaparkhi (1996),
+except that the same features (including orthographic features) are used 
+for "rare" and "non-rare" words.
+
+IOB NP-chunking support may be added at a later date.
 
 Usage
 -----
@@ -35,13 +37,6 @@ License
 -------
 
 MIT License (BSD-like); see source.
-
-Gotchas
--------
-
-There is no guarantee that a pickled (and compressed) model file will be
-compatible with a platform or Python version other than the one it was 
-generated on.
 
 What's with the name?
 ---------------------
