@@ -20,21 +20,16 @@
 # TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 # SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #
-# Perceptronix Point Never: perceptron-based part-of-speech tagger
-
+# Perceptronix Point Never: a perceptron-based part-of-speech tagger
 
 from __future__ import division
 
-
 import logging
 
-
 from time import time
-from string import digits
-from itertools import product
-from functools import partial
 from collections import defaultdict
 #from numpy import int8, ones, zeros
+
 from numpy.random import permutation
 # timeit tests suggest that for generating a random list of indices of the
 # sort used to randomize order of presentation, this is much faster than
@@ -42,170 +37,36 @@ from numpy.random import permutation
 # it should not be difficult to modify the code to use `random` instead.
 from jsonpickle import encode, decode
 
+from lazyweight import LazyWeight
+from features import POS_token_features
+
 ## defaults and (pseudo)-globals
-VERSION_NUMBER = 0.1
-PRE_SUF_MAX = 4
+VERSION_NUMBER = 0.2
 TRAINING_ITERATIONS = 10
-LEFT_PAD = ['<S1>', '<S0>']
-RIGHT_PAD = ['</S0>', '</S1>']
 
+## usage string
 USAGE = """Perceptronix Point Never {}, by Kyle Gorman <gormanky@ohsu.edu>
-
-USAGE: ./ppn.py INPUT_ARGS OUTPUT_ARG1 [...] [-h] [-v]
 
     Input arguments (exactly one required):
 
-        -i tag         train model on "token/tag" data in `tagged`
+        -i tag         train model on data in `tagged`
         -p source      read serialized model from `source`
 
     Output arguments (at least one required):
 
         -D sink        dump serialized training model to `sink`
-        -T untagged    tag data in `untagged`, writing to stdout
-        -E tagged      Compute accuracy on "token/tag" data in `tagged`
+        -E tagged      compute accuracy on data in `tagged`
+        -T untagged    tag data in `untagged`
     
     Optional arguments:
 
         -t t           number of training iterations (default: {})
         -h             print this message and quit
         -v             increase verbosity
+
+Options `-i` and `-E` take whitespace-delimited "token/tag" pairs as input.
+Option `-T` takes whitespace-delimited tokens (no tags) as input.
 """.format(VERSION_NUMBER, TRAINING_ITERATIONS)
-
-
-# helper classes include a List-ifying decorator, a mixin for JSON support,# and a lazily-updated averaged perceptron weight
-
-class PoliteClass(object):
-
-    """
-    Abstract polite decorator
-    """
-
-    def __init__(self, function):
-        self.function = function
-
-    def __doc__(self):
-        return self.function.__doc__
-
-    def __repr__(self):
-        return repr(self.function)
-
-    def __str__(self):
-        return str(self.function)
-
-    def __name__(self):
-        return self.function.__name__
-
-    def __call__(self, *args, **kwargs):
-        """
-        Default, do-nothing definition
-        """
-        return self.function(*args, **kwargs)
-
-    def __get__(self, obj):
-        """
-        Access instance methods
-        """
-        return functools.partial(self.__call__, obj)
-
-# container decorators
-
-
-class Listify(PoliteClass):
-
-    """
-    Decorator which converts the output of a generator to a list
-
-    >>> @Listify
-    ... def fibonacci(n):
-    ...     'Generator for the first n Fibonacci numbers'
-    ...     F1 = 0
-    ...     yield F1
-    ...     F2 = 1
-    ...     for _ in xrange(n - 1):
-    ...         yield F2
-    ...         (F1, F2) = (F2, F1 + F2)
-    >>> print(fibonacci(10))
-    [0, 1, 1, 2, 3, 5, 8, 13, 21, 34]
-    """
-
-    def __call__(self, *args, **kwargs):
-        call = self.function(*args, **kwargs)
-        return list(call) if call != None else []
-
-
-class LazyWeight(object):
-
-    """
-    This class represents an individual weight in an averaged perceptron
-    as a signed integer. It allows for several subtle optimizations. 
-    First, as the name suggests, the `summed_weight` variable is lazily 
-    evaluated (i.e., computed only when needed). This summed weight is the
-    one used in actual inference: we need not average explicitly. Lazy 
-    evaluation requires us to store two other numbers. First, we store the
-    "real" weight (i.e., if this wasn't part of an averaged perceptron).
-    Secondly, we store the last time this weight was updated. These two 
-    additional numbers work together as follows. When we need the real 
-    value of the summed weight (for inference), we "evaluate" the summed 
-    weight by adding to it the real weight multipled by the time elapsed.
-
-    While passing around the time of the outer class is suboptimal, one
-    advantage of this format is that we can store weights and their 
-    times in the same place, reducing the number of redundant hash table 
-    lookups required.
-
-    # initialize 
-    >>> t = 0
-    >>> lw = LazyWeight(t, 1)
-    >>> lw.get(t)
-    1
-
-    # some time passes...
-    >>> t += 1
-    >>> lw.get(t)
-    2
-
-    # weight is now changed
-    >>> lw.update(t, -1)
-    >>> t += 3
-    >>> lw.update(t, -1)
-    >>> t += 3
-    >>> lw.get(t)
-    -1
-    """
-
-    def __init__(self, time=0, initial_weight=0):
-        self.weight = initial_weight
-        self.summed_weight = initial_weight
-        self.timestamp = time
-
-    def __repr__(self):
-        return '{}(weight = {}, summed_weight = {})'.format(
-            self.__class__.__name__, self.weight, self.summed_weight)
-
-    def _evaluate(self, time):
-        """
-        This function applies queued updates and freshens the timestamp, 
-        and, should be called any time the value of a weight is used or
-        modified
-        """
-        if time == self.timestamp:
-            return
-        self.summed_weight += (time - self.timestamp) * self.weight
-        self.timestamp = time
-
-    def get(self, time):
-        """
-        Return an up-to-date sum of weights
-        """
-        self._evaluate(time)
-        return self.summed_weight
-
-    def update(self, time, value):
-        """
-        Bring sum of weights up to date, then add `value` to the weight
-        """
-        self._evaluate(time)
-        self.weight += value
 
 
 class PPN(object):
@@ -224,7 +85,7 @@ class PPN(object):
         if sentences:
             self.train(sentences, T)
 
-    # alternative constr
+    # alternative constructor using JSON
     
     @classmethod
     def load(cls, source):
@@ -249,7 +110,7 @@ class PPN(object):
             feature_corpus.append((tags, POS_token_features(tokens)))
             self.tagset.update(tags)
         # begin training
-        logging.info('{} epochs of training...'.format(T))
+        logging.info('{} epoch(s) of training...'.format(T))
         for t in range(T):
             tic = time()
             epoch_right = 0
@@ -317,10 +178,10 @@ class PPN(object):
         return tags
         # FIXME not actually using Viterbi decoding yet
         """
-                summed_weights = defaultdict(int)
-                featweight_ptr = self.weights[feat]
-                for (tag, weight) in featweight_ptr.iteritems():
-                    summed_weights[tag] += weight
+        summed_weights = defaultdict(int)
+        featweight_ptr = self.weights[feat]
+        for (tag, weight) in featweight_ptr.iteritems():
+            summed_weights[tag] += weight
         # initialize Viterbi trellis and backpointers
         #size = ...
         trellis = zeros(size, dtype=int)
@@ -361,114 +222,14 @@ class PPN(object):
         return correct / total
 
 
-# feature extractors
-
-# features for POS tagging (from Ratnaparkhi 1996, but ignoring the
-# distinction between "rare" and "non-rare" words as in Collins 2002):
-#
-# w-2=X: two tokens back
-# w-1=X: previous token
-# w=X: current token
-# w+1: next token
-# w+2: two tokens ahead
-# t-1=X: previous tag
-# t-2,t-1=X: previous two tags
-# p1=X: first character
-# p2=X: first two characters
-# p3=X: first three characters
-# p4=X: first four characters
-# s1=X: last character
-# s2=X: last two characters
-# s3=X: last three characters
-# s4=X: last four characters
-# h: contains a hyphen?
-# n: contains a number?
-# u: contains an uppercase character
-
-@Listify
-def POS_token_features(tokens):
-    """
-    Given lists of tokens, extract all token-related features in the form
-    of a list of sets where each set contains the (non-zero) token-related
-    features for the corresponding token
-    """
-    folded_tokens = [t.lower() for t in tokens]
-    padded_tokens = LEFT_PAD + folded_tokens + RIGHT_PAD
-    for (i, ftoken) in enumerate(padded_tokens[2:-2]):
-        featset = {'b'}  # initialize with bias term
-        # tokens nearby
-        featset.add('w-2={}'.format(padded_tokens[i]))
-        featset.add('w-1={}'.format(padded_tokens[i + 1]))
-        featset.add('w={}'.format(ftoken))  # == padded_tokens[i + 2]
-        featset.add('w+1={}'.format(padded_tokens[i + 3]))
-        featset.add('w+2={}'.format(padded_tokens[i + 4]))
-        # "prefix" and "suffix" features
-        for j in range(1, 1 + min(len(ftoken), PRE_SUF_MAX)):
-            featset.add('p{}={}'.format(j, ftoken[:+j]))  # prefix
-            featset.add('s{}={}'.format(j, ftoken[-j:]))  # suffix
-        # contains a hyphen?
-        if any(c == '-' for c in ftoken):
-            featset.add('h')
-        # contains a number?
-        if any(c in digits for c in ftoken):
-            featset.add('n')
-        # contains an uppercase character?
-        if ftoken != tokens[i]:
-            featset.add('u')
-        # and we're done with that word
-        yield featset
-
-
-@Listify
-def POS_tag_features(tags):
-    """
-    Given lists of tokens, extract trigram tag-related features in the 
-    form of a list of sets (as above)
-    """
-    padded_tags = LEFT_PAD + list(tags)
-    for i in range(len(padded_tags) - 2):
-        yield {'t-1={}'.format(padded_tags[i + 1]),
-               't-2,t-1={},{}'.format(*padded_tags[i:i + 2])}
-
-# TODO NP-chunking features (from Collins 2002):
-#
-# def NPC_token_features(tokens):
-# def NPC_tag_features(tags):
-#
-# b: bias (omnipresent)
-#
-# w-1=X: previous token
-# w-2=X: two tokens back
-# w=X: current token
-# w+1=X: next token
-# w+2=X: two tokens ahead
-#
-# w-2,w-1=X,Y: previous two tokens
-# w-1,w=X,Y: previous token and current token
-# w,w+1=X,Y: current token and next token
-# w+1,w+2=X,Y: next two tokens
-#
-# t-1=X: previous tag
-# t-2=X: two tags back
-# t=X: current tag
-# t+1=X: next tag
-# t+2=X: two tags ahead
-#
-# t-2,t-1=X,Y: previous two tags
-# t-1,t=X,Y: previous tag and current tag
-# t,t+1=X,Y: next two tags
-#
-# t-2,t-1,t=X,Y,Z: previous two tags and current tag
-# t-1,t,t+1=X,Y,Z: previous tag, current tag, and next tag
-# t,t+1,t+2=X,Y,Z: current tag and next two tags
-
-
 if __name__ == '__main__':
 
     from sys import argv
     from gzip import GzipFile
     from nltk import str2tuple, untag
     from getopt import getopt, GetoptError
+
+    from decorators import Listify
 
     # helpers
 
@@ -484,8 +245,7 @@ if __name__ == '__main__':
             for line in source:
                 yield line.strip().split()
 
-    # parse arguments
-
+    ## parse arguments
     try:
         (optlist, args) = getopt(argv[1:], 'i:p:D:E:T:t:hv')
     except GetoptError as err:
@@ -527,12 +287,12 @@ if __name__ == '__main__':
             logging.error('Option {} not found.'.format(opt, arg))
             exit(USAGE)
 
-    # check outputs
+    ## check outputs
     if not any((model_sink, untagged_source, test_source)):
         logging.error('No outputs specified.')
         exit(USAGE)
 
-    # run inputs
+    ## run inputs
     ppn = None
     if tagged_source:
         if model_source:
@@ -558,7 +318,7 @@ if __name__ == '__main__':
         logging.error('No input specified.')
         exit(USAGE)
 
-    # run outputs
+    ## run outputs
     if test_source:
         logging.info('Evaluating on data from "{}".'.format(test_source))
         try:
