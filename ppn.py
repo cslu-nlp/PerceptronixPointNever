@@ -25,24 +25,28 @@
 from __future__ import division
 
 import logging
+import jsonpickle
 
 from time import time
+from numpy import ones, zeros
 from collections import defaultdict
-#from numpy import int8, ones, zeros
-
 from numpy.random import permutation
 # timeit tests suggest that for generating a random list of indices of the
 # sort used to randomize order of presentation, this is much faster than
 # `random.shuffle`; if for some reason you are unable to deploy `numpy`,
 # it should not be difficult to modify the code to use `random` instead.
-from jsonpickle import encode, decode
 
 from lazyweight import LazyWeight
-from features import POS_token_features
+from decorators import Listify, Setify
+from features import POS_tag_features, POS_token_features, TAG_START_FEATS
 
 ## defaults and (pseudo)-globals
 VERSION_NUMBER = 0.2
 TRAINING_ITERATIONS = 10
+INF = float('inf')
+
+## set jsonpickle to do it human-readable
+jsonpickle.set_encoder_options('simplejson', indent=4)
 
 ## usage string
 USAGE = """Perceptronix Point Never {}, by Kyle Gorman <gormanky@ohsu.edu>
@@ -92,50 +96,55 @@ class PPN(object):
         """
         Create new PPN instance from serialized JSON from `source`
         """
-        return decode(source.read())
+        return jsonpickle.decode(source.read())
 
     def dump(self, sink):
         """
         Serialize object (as JSON) and print to `sink`
         """
-        print >> sink, encode(self)
+        print >> sink, jsonpickle.encode(self)
 
-    def train(self, sentences, T=1):
-        logging.info('Extracting input features for training.')
-        # collect tagset and features
-        self.tagset = set()
-        feature_corpus = []
+    @staticmethod
+    @Listify
+    def _get_features(sentences):
         for sentence in sentences:
             (tokens, tags) = zip(*sentence)
-            feature_corpus.append((tags, POS_token_features(tokens)))
-            self.tagset.update(tags)
+            yield tags, POS_token_features(tokens), POS_tag_features(tags)
+
+    @staticmethod
+    def _get_tag_index(sentence_features):
+        tagset = set()
+        for (tags, _, _) in sentence_features:
+            tagset.update(tags)
+        return {tag: i for (i, tag) in enumerate(tagset)}
+        
+    def train(self, sentences, T=1):
+        logging.info('Extracting input features for training.')
+        sentfeats = PPN._get_features(sentences)
+        # construct dictionary mapping from tag to index in trellis
+        self.tag_index = PPN._get_tag_index(sentfeats)
         # begin training
-        logging.info('{} epoch(s) of training...'.format(T))
-        for t in range(T):
+        for t in xrange(T):
             tic = time()
-            epoch_right = 0
-            epoch_wrong = 0
-            for (gtags, features) in permutation(feature_corpus):
-                # get hypothesized tagging
-                htags = self._feature_tag(features)
-                # compare it to gold standard
-                for (htag, gtag, featset) in zip(htags, gtags, features):
-                    # if it ain't broke, don't fix it
+            epoch_right = epoch_wrong = 0
+            for (gtags, tokfeats, tagfeats) in permutation(sentfeats):
+                # compare hypothesized tagging to gold standard
+                htags = self._feature_tag_greedy(tokfeats)
+                #htags = self._feature_tag(tokfeats, tagfeats)
+                for (htag, gtag, tokf, tagf) in zip(htags, gtags, \
+                                                    tokfeats, tagfeats):
                     if htag == gtag:
                         epoch_right += 1
                         continue
-                    logging.debug('Htag {} -> Gtag {}'.format(htag, gtag))
-                    # reward and punish
-                    self._update(gtag, featset, +1)
-                    self._update(htag, featset, -1)
+                    feats = tokf + tagf
+                    self._update(gtag, feats, +1)
+                    self._update(htag, feats, -1)
                     epoch_wrong += 1
-                # increment time
                 self.time += 1
-            # duration of the epoch in sec
-            # compute accuracy
+            # check for early convergence and compute accuracy
+            if epoch_wrong == 0:
+                return
             acc = epoch_right / (epoch_right + epoch_wrong)
-            if acc == 1.:
-                logging.warning('Early convergence! Woohoo!')
             logging.info('Epoch {:02} acc.: {:.04f}'.format(t + 1, acc) +
                          ' ({}s elapsed).'.format(int(time() - tic)))
         logging.info('Training complete.')
@@ -145,7 +154,6 @@ class PPN(object):
         Apply update ("reward" if `sgn` == 1, "punish" if `sgn` == -1) for
         each feature in `features` for this `tag`
         """
-        # update features for this tag
         tag_ptr = self.weights[tag]
         for feat in featset:
             tag_ptr[feat].update(self.time, sgn)
@@ -154,20 +162,23 @@ class PPN(object):
         """
         Tag a single `sentence` (list of tokens)
         """
-        return zip(tokens, self._feature_tag(POS_token_features(tokens)))
+        return zip(tokens, 
+                   self._feature_tag_greedy(POS_token_features(tokens)))
+                   #self._feature_tag(POS_token_features(tokens)))
 
-    def _feature_tag(self, features):
+    def _feature_tag_greedy(self, tokfeats):
         """
-        Using Viterbi decoding, tag a sentence, represented as a list of 
-        sets containing precomputing input features of the corresponding 
-        tokens; note this does not return (token, tag) tuples but just 
-        a tag sequence
+        Tag a sentence from a list of sets of token features; note this
+        returns a list of tags, not a list of (token, tag) tuples
+
+        Deprecated: doesn't use Viterbi decoding (though it still works
+        pretty well!), or even preceding tag hypotheses
         """
         tags = []
-        for featset in features:
+        for featset in tokfeats:
             best_tag = None
-            best_score = None  # None is less than every number
-            for tag in self.tagset:
+            best_score = -INF
+            for tag in self.tag_index.iterkeys():
                 tag_ptr = self.weights[tag]
                 tag_score = sum(tag_ptr[feat].get(self.time) for
                                 feat in featset)
@@ -176,33 +187,40 @@ class PPN(object):
                     best_score = tag_score
             tags.append(best_tag)
         return tags
-        # FIXME not actually using Viterbi decoding yet
+
+    def _feature_tag(self, tokfeats, tagfeats):
         """
-        summed_weights = defaultdict(int)
-        featweight_ptr = self.weights[feat]
-        for (tag, weight) in featweight_ptr.iteritems():
-            summed_weights[tag] += weight
-        # initialize Viterbi trellis and backpointers
-        #size = ...
-        trellis = zeros(size, dtype=int)
-        backptrs = -ones(size, dtype=int8)  # are small natural numbers
-        # extract tagset
-        tagset = self.weights.keys()
-        # populate it
-        for (i, feature) in enumerate(features):
-            for (tag, weights) in self.weights.items():
-                emissions = sum(wval.get(self.time) for (wkey, wval) in \
-                                weights.items() if wkey in features)
-                for t_1 in tagset:
-                    # do the max operation
-                    bigram_weights = emissions + bigram_transitions
-                    #for t_2 in tagset:
-                        # do the max operation
-                        #trigram_weights = bigram_weights + ...(t2, t1)
-                        #trellis[i][tag] = bigram_weights + ...(t2, t1)
-                trellis.append(trellis_column)
-        # follow backpointers
-        # return tag_sequence
+        Tag a sentence from a list of sets of token features; note this
+        returns a list of tags, not a list of (token, tag) tuples
+        """
+        L = len(tokfeats)
+        Lt = len(self.tag_index)
+        trellis = zeros((L, Lt), dtype=int)
+        bckptrs = -ones((L, Lt), dtype=int)
+        # populate trellis with sum of token feature weights
+        for (t, featset) in enumerate(tokfeats):
+            for (tag, i) in self.tag_index.iteritems():
+                tagptr = self.weights[tag]
+                trellis[t, i] = sum(tagptr[feat].get(self.time) for
+                                    feat in featset)
+        # add in Viterbi tag weights
+        print trellis
+        return []
+        """
+        # for each time t
+        for t in xrange(L):
+            # for each possible tag at time `t`
+            for (tag, i) in self.tag_index.iteritems():
+                tagptr = self.weights[tag]
+                trellis[t, i] += sum(tagptr[feat].get(self.time) for
+                                     feat in ???)
+                # for each possible tag at t - 1 (one tag back)
+                for tag_t_minus_1:
+                    # for each possible tag at t -2 (two tags back)
+                    for tag_t_minus_2:
+        #trellis = zeros(size, dtype=int)    # large natural numbers
+        #backptrs = -ones(size, dtype=int8)  # small natural numbers
+        # FIXME not actually using Viterbi decoding yet
         return tag_sequence
         """
 

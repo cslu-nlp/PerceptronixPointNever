@@ -12,24 +12,25 @@ IOB NP-chunking support may be added at a later date.
 Usage
 -----
 
-    USAGE: ./ppn.py INPUT_ARGS OUTPUT_ARG1 [...] [-h] [-v]
-
     Input arguments (exactly one required):
 
-        -i tag         train model on "token/tag"-format data in `tagged`
-        -p pickled     read pickled training model from `pickled`
+        -i tag         train model on data in `tagged`
+        -p source      read serialized model from `source`
 
     Output arguments (at least one required):
 
-        -D pickled     dump pickled training model to `sink`
-        -E tagged      report accuracy on already-tagged data in `tagged`
-        -T untagged    tag data in `untagged`, writing to stdout
+        -D sink        dump serialized training model to `sink`
+        -E tagged      compute accuracy on data in `tagged`
+        -T untagged    tag data in `untagged`
     
     Optional arguments:
 
         -t t           number of training iterations (default: 10)
         -h             print this message and quit
         -v             increase verbosity
+
+Options `-i` and `-E` take whitespace-delimited "token/tag" pairs as input.
+Option `-T` takes whitespace-delimited tokens (no tags) as input.
 
 For anything else, UTSL...
 

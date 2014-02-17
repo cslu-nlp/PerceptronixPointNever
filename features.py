@@ -66,26 +66,26 @@ def POS_token_features(tokens):
     folded_tokens = [t.lower() for t in tokens]
     padded_tokens = LEFT_PAD + folded_tokens + RIGHT_PAD
     for (i, ftoken) in enumerate(padded_tokens[2:-2]):
-        featset = {'b'}  # initialize with bias term
+        featset = ['b']  # initialize with bias term
         # tokens nearby
-        featset.add('w-2={}'.format(padded_tokens[i]))
-        featset.add('w-1={}'.format(padded_tokens[i + 1]))
-        featset.add('w={}'.format(ftoken))  # == padded_tokens[i + 2]
-        featset.add('w+1={}'.format(padded_tokens[i + 3]))
-        featset.add('w+2={}'.format(padded_tokens[i + 4]))
+        featset.append('w-2="{}"'.format(padded_tokens[i]))
+        featset.append('w-1="{}"'.format(padded_tokens[i + 1]))
+        featset.append('w="{}"'.format(ftoken))  # == padded_tokens[i + 2]
+        featset.append('w+1="{}"'.format(padded_tokens[i + 3]))
+        featset.append('w+2="{}"'.format(padded_tokens[i + 4]))
         # "prefix" and "suffix" features
         for j in range(1, 1 + min(len(ftoken), PRE_SUF_MAX)):
-            featset.add('p{}={}'.format(j, ftoken[:+j]))  # prefix
-            featset.add('s{}={}'.format(j, ftoken[-j:]))  # suffix
+            featset.append('p({})="{}"'.format(j, ftoken[:+j]))  # prefix
+            featset.append('s({})="{}"'.format(j, ftoken[-j:]))  # suffix
         # contains a hyphen?
         if any(c == '-' for c in ftoken):
-            featset.add('h')
+            featset.append('h')
         # contains a number?
         if any(c in digits for c in ftoken):
-            featset.add('n')
+            featset.append('n')
         # contains an uppercase character?
         if ftoken != tokens[i]:
-            featset.add('u')
+            featset.append('u')
         # and we're done with that word
         yield featset
 
@@ -98,8 +98,12 @@ def POS_tag_features(tags):
     """
     padded_tags = LEFT_PAD + list(tags)
     for i in range(len(padded_tags) - 2):
-        yield {'t-1={}'.format(padded_tags[i + 1]),
-               't-2,t-1={},{}'.format(*padded_tags[i:i + 2])}
+        yield ['t-1="{}"'.format(padded_tags[i + 1]),
+               't-2="{}",t-1="{}"'.format(*padded_tags[i:i + 2])]
+
+
+# tag features for the start of a sentence
+TAG_START_FEATS = POS_tag_features([None])[0]
 
 
 # TODO NP-chunking features (from Collins 2002):
