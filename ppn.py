@@ -34,7 +34,6 @@ import logging
 import jsonpickle
 
 from time import time
-from sys import stderr # FIXME
 from numpy import ones, zeros
 from numpy.random import permutation
 from collections import deque, defaultdict
@@ -160,8 +159,6 @@ class PPN(object):
                     self._update(htag, feats, -1)
                     epoch_wrong += 1
                 self.time += 1
-                stderr.write('.')
-            print >> stderr
             # compute accuracy
             acc = epoch_right / (epoch_right + epoch_wrong)
             logging.info('Epoch {:02} acc.: {:.04f}'.format(t, acc) +
