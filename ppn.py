@@ -1,5 +1,5 @@
 #!/usr/bin/env python -O
-# Copyright (C) 2014 Kyle Gorman
+# Copyright (C) 2014 Kyle Gorman & Steven Bedrick
 #
 # Permission is hereby granted, free of charge, to any person obtaining a
 # copy of this software and associated documentation files (the
@@ -21,6 +21,12 @@
 # SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #
 # Perceptronix Point Never: a perceptron-based part-of-speech tagger
+#
+# TODO:
+#   * optimize out tag feature computation
+#   * only keep two rows of the trellis
+#   * add IOB chunking support
+#   * port to Python 3 (once NLTK support is available?)
 
 from __future__ import division
 
@@ -28,28 +34,31 @@ import logging
 import jsonpickle
 
 from time import time
+from sys import stderr # FIXME
 from numpy import ones, zeros
-from collections import defaultdict
 from numpy.random import permutation
+from collections import deque, defaultdict
 # timeit tests suggest that for generating a random list of indices of the
 # sort used to randomize order of presentation, this is much faster than
 # `random.shuffle`; if for some reason you are unable to deploy `numpy`,
 # it should not be difficult to modify the code to use `random` instead.
 
+from features import *
 from lazyweight import LazyWeight
 from decorators import Listify, Setify
-from features import POS_tag_features, POS_token_features, TAG_START_FEATS
 
 ## defaults and (pseudo)-globals
-VERSION_NUMBER = 0.2
+VERSION_NUMBER = 0.3
 TRAINING_ITERATIONS = 10
 INF = float('inf')
 
-## set jsonpickle to do it human-readable
-jsonpickle.set_encoder_options('simplejson', indent=4)
+# set jsonpickle to do it human-readable
+jsonpickle.set_encoder_options('simplejson', indent=' ')
 
-## usage string
-USAGE = """Perceptronix Point Never {}, by Kyle Gorman <gormanky@ohsu.edu>
+# usage string
+USAGE = """Perceptronix Point Never {}, by Kyle Gorman and Steven Bedrick
+
+    python ppn.py [-i tag] [-i|-p input] [-D|-E|-T output] [-t t] [-h] [-v]
 
     Input arguments (exactly one required):
 
@@ -82,57 +91,67 @@ class PPN(object):
 
     def __init__(self, sentences=None, T=1):
         self.time = 0
-        # the (outer) keys are features represented as strings; the values
-        # are (inner) dictionaries with tag keys and LazyWeight values
+        # the outer keys are tags; the outer values are dictionaries with
+        # (inner) feature keys and LazyWeight values
         self.weights = defaultdict(lambda: defaultdict(LazyWeight))
         logging.info('Constructed new PPN instance.')
         if sentences:
             self.train(sentences, T)
 
-    # alternative constructor using JSON
-    
+    # alternative constructor using serialized JSON
+
     @classmethod
     def load(cls, source):
         """
         Create new PPN instance from serialized JSON from `source`
         """
-        return jsonpickle.decode(source.read())
+        return jsonpickle.decode(source.read(), keys=True)
 
     def dump(self, sink):
         """
-        Serialize object (as JSON) and print to `sink`
+        Serialize object (as JSON) and write to `sink`
         """
-        print >> sink, jsonpickle.encode(self)
+        print >> sink, jsonpickle.encode(self, keys=True)
 
     @staticmethod
     @Listify
     def _get_features(sentences):
+        """
+        Extract all features used in training, returning a (tag list,
+        token feature list, and tag feature list) tuple for each sentence
+        """
         for sentence in sentences:
             (tokens, tags) = zip(*sentence)
             yield tags, POS_token_features(tokens), POS_tag_features(tags)
 
     @staticmethod
-    def _get_tag_index(sentence_features):
+    def _get_index2tag(sentence_features):
+        """
+        Construct dictionary mapping from a counting number index to the
+        associated tag
+        """
         tagset = set()
         for (tags, _, _) in sentence_features:
             tagset.update(tags)
-        return {tag: i for (i, tag) in enumerate(tagset)}
-        
+        return {i: tag for (i, tag) in enumerate(tagset)}
+
     def train(self, sentences, T=1):
         logging.info('Extracting input features for training.')
+        # each element of the `sentfeats` represents a sentence:
+        #   each sentence is a triple of tags, token feature lists,
+        #   and tag feature lists
         sentfeats = PPN._get_features(sentences)
         # construct dictionary mapping from tag to index in trellis
-        self.tag_index = PPN._get_tag_index(sentfeats)
+        self.index2tag = PPN._get_index2tag(sentfeats)
         # begin training
-        for t in xrange(T):
+        logging.info('Beginning {} epochs of training...'.format(T))
+        for t in xrange(1, T + 1):
             tic = time()
             epoch_right = epoch_wrong = 0
             for (gtags, tokfeats, tagfeats) in permutation(sentfeats):
                 # compare hypothesized tagging to gold standard
-                htags = self._feature_tag_greedy(tokfeats)
-                #htags = self._feature_tag(tokfeats, tagfeats)
-                for (htag, gtag, tokf, tagf) in zip(htags, gtags, \
-                                                    tokfeats, tagfeats):
+                htags = self._feature_tag(tokfeats)
+                for (htag, gtag, tokf, tagf) in zip(htags, gtags, tokfeats,                                                                 tagfeats):
                     if htag == gtag:
                         epoch_right += 1
                         continue
@@ -141,11 +160,11 @@ class PPN(object):
                     self._update(htag, feats, -1)
                     epoch_wrong += 1
                 self.time += 1
-            # check for early convergence and compute accuracy
-            if epoch_wrong == 0:
-                return
+                stderr.write('.')
+            print >> stderr
+            # compute accuracy
             acc = epoch_right / (epoch_right + epoch_wrong)
-            logging.info('Epoch {:02} acc.: {:.04f}'.format(t + 1, acc) +
+            logging.info('Epoch {:02} acc.: {:.04f}'.format(t, acc) +
                          ' ({}s elapsed).'.format(int(time() - tic)))
         logging.info('Training complete.')
 
@@ -154,75 +173,106 @@ class PPN(object):
         Apply update ("reward" if `sgn` == 1, "punish" if `sgn` == -1) for
         each feature in `features` for this `tag`
         """
-        tag_ptr = self.weights[tag]
+        tagptr = self.weights[tag]
         for feat in featset:
-            tag_ptr[feat].update(self.time, sgn)
+            tagptr[feat].update(self.time, sgn)
 
     def tag(self, tokens):
         """
         Tag a single `sentence` (list of tokens)
         """
-        return zip(tokens, 
-                   self._feature_tag_greedy(POS_token_features(tokens)))
-                   #self._feature_tag(POS_token_features(tokens)))
+        return zip(tokens, self._feature_tag(POS_token_features(tokens)))
 
     def _feature_tag_greedy(self, tokfeats):
         """
         Tag a sentence from a list of sets of token features; note this
         returns a list of tags, not a list of (token, tag) tuples
 
-        Deprecated: doesn't use Viterbi decoding (though it still works
-        pretty well!), or even preceding tag hypotheses
+        This is deprecated; use Viterbi (_feature_tag) instead. It's not
+        called by any code, but is nice to keep around for debugging.
         """
         tags = []
-        for featset in tokfeats:
+        for i, tokfeatset in enumerate(tokfeats):
+            featset = tokfeatset + tag_featset(*tags[-2:])
             best_tag = None
-            best_score = -INF
-            for tag in self.tag_index.iterkeys():
-                tag_ptr = self.weights[tag]
-                tag_score = sum(tag_ptr[feat].get(self.time) for
-                                feat in featset)
-                if tag_score > best_score:
+            best_weight = -INF
+            for tag in self.index2tag.itervalues():
+                tagptr = self.weights[tag]
+                weight = sum(tagptr[feat].get(self.time) for
+                             feat in featset)
+                if weight > best_weight:
+                    best_weight = weight
                     best_tag = tag
-                    best_score = tag_score
             tags.append(best_tag)
         return tags
 
-    def _feature_tag(self, tokfeats, tagfeats):
+    def _feature_tag(self, tokfeats):
         """
         Tag a sentence from a list of sets of token features; note this
         returns a list of tags, not a list of (token, tag) tuples
         """
-        L = len(tokfeats)
-        Lt = len(self.tag_index)
+        L = len(tokfeats)  # len of sentence, in tokens
+        if L == 0:
+            return []
+        Lt = len(self.index2tag)
         trellis = zeros((L, Lt), dtype=int)
         bckptrs = -ones((L, Lt), dtype=int)
-        # populate trellis with sum of token feature weights
-        for (t, featset) in enumerate(tokfeats):
-            for (tag, i) in self.tag_index.iteritems():
+        # special case for first tag position
+        featset = tokfeats[0] + tag_featset(*LEFT_PAD)
+        for (i, tag) in self.index2tag.iteritems():
+            tagptr = self.weights[tag]
+            trellis[0, i] = sum(tagptr[feat].get(self.time) for
+                                feat in featset)
+        # if there's only one word, we need to halt now
+        if L == 1:
+            return [self.index2tag[trellis[0, ].argmax()]]
+        # special case for second tag position
+        for (i, tag) in self.index2tag.iteritems():
+            tagptr = self.weights[tag]
+            best_transition = -1
+            best_weight = -INF
+            for (j, prev_tag) in self.index2tag.iteritems():
+                tagfeatset = tag_featset(LEFT_PAD[1], prev_tag)
+                transition_weight = sum(tagptr[feat].get(self.time) for
+                                        feat in tagfeatset)
+                state_weight = trellis[0, j] + transition_weight
+                if state_weight > best_weight:
+                    best_weight = state_weight
+                    best_transition = j
+            emission_weight = sum(tagptr[feat].get(self.time) for
+                                  feat in tokfeats[1])
+            trellis[1, i] = emission_weight + best_weight
+            bckptrs[1, i] = best_transition
+        # all other tag positions
+        for t in xrange(2, L):
+            for (i, tag) in self.index2tag.iteritems():  # for each tag
                 tagptr = self.weights[tag]
-                trellis[t, i] = sum(tagptr[feat].get(self.time) for
-                                    feat in featset)
-        # add in Viterbi tag weights
-        print trellis
-        return []
-        """
-        # for each time t
-        for t in xrange(L):
-            # for each possible tag at time `t`
-            for (tag, i) in self.tag_index.iteritems():
-                tagptr = self.weights[tag]
-                trellis[t, i] += sum(tagptr[feat].get(self.time) for
-                                     feat in ???)
-                # for each possible tag at t - 1 (one tag back)
-                for tag_t_minus_1:
-                    # for each possible tag at t -2 (two tags back)
-                    for tag_t_minus_2:
-        #trellis = zeros(size, dtype=int)    # large natural numbers
-        #backptrs = -ones(size, dtype=int8)  # small natural numbers
-        # FIXME not actually using Viterbi decoding yet
-        return tag_sequence
-        """
+                best_transition = -1
+                best_weight = -INF
+                for (j, prev_tag) in self.index2tag.iteritems():
+                    prev_prev_tag = self.index2tag[bckptrs[t - 1, j]]
+                    tagfeatset = tag_featset(prev_prev_tag, prev_tag)
+                    transition_weight = sum(tagptr[feat].get(self.time) for
+                                            feat in tagfeatset)
+                    state_weight = trellis[t - 1, j] + transition_weight
+                    if state_weight > best_weight:
+                        best_weight = state_weight
+                        best_transition = j
+                emission_weight = sum(tagptr[feat].get(self.time) for
+                                      feat in tokfeats[t])
+                trellis[t, i] = emission_weight + best_weight
+                bckptrs[t, i] = best_transition
+        t = L - 1
+        # get index of best final state/tag
+        index = trellis[t, ].argmax()
+        # store it in a LIFO queue
+        tags = deque([self.index2tag[index]])
+        # follow backptrs from there
+        while t > 0:
+            index = bckptrs[t, index]
+            tags.appendleft(self.index2tag[index])
+            t -= 1
+        return list(tags)
 
     def evaluate(self, sentences):
         """
@@ -244,12 +294,18 @@ if __name__ == '__main__':
 
     from sys import argv
     from gzip import GzipFile
-    from nltk import str2tuple, untag
     from getopt import getopt, GetoptError
 
     from decorators import Listify
 
     # helpers
+
+    def str2tuple(s):
+        i = s.rfind('/')
+        return (s[:i], s[i + 1:])
+
+    def untag(sentence):
+        return [w for (w, t) in sentence]
 
     @Listify
     def tag_reader(filename):
@@ -263,7 +319,7 @@ if __name__ == '__main__':
             for line in source:
                 yield line.strip().split()
 
-    ## parse arguments
+    # parse arguments
     try:
         (optlist, args) = getopt(argv[1:], 'i:p:D:E:T:t:hv')
     except GetoptError as err:
@@ -305,19 +361,19 @@ if __name__ == '__main__':
             logging.error('Option {} not found.'.format(opt, arg))
             exit(USAGE)
 
-    ## check outputs
+    # check outputs
     if not any((model_sink, untagged_source, test_source)):
         logging.error('No outputs specified.')
         exit(USAGE)
 
-    ## run inputs
+    # run inputs
     ppn = None
     if tagged_source:
         if model_source:
             logging.error('Incompatible inputs (-i and -p) specified.')
             exit(1)
         logging.info('Training model from tagged data "{}".'.format(
-                                                            tagged_source))
+            tagged_source))
         try:
             ppn = PPN(tag_reader(tagged_source), training_iterations)
         except IOError as err:
@@ -325,7 +381,7 @@ if __name__ == '__main__':
             exit(1)
     elif model_source:
         logging.info('Reading model from serialized data "{}".'.format(
-                                                             model_source))
+            model_source))
         try:
             with GzipFile(model_source, 'r') as source:
                 ppn = PPN.load(source)
@@ -336,7 +392,7 @@ if __name__ == '__main__':
         logging.error('No input specified.')
         exit(USAGE)
 
-    ## run outputs
+    # run outputs
     if test_source:
         logging.info('Evaluating on data from "{}".'.format(test_source))
         try:

@@ -12,6 +12,8 @@ IOB NP-chunking support may be added at a later date.
 Usage
 -----
 
+python ppn.py [-i tag] [-i|-p input] [-D|-E|-T output] [-t t] [-h] [-v]
+
     Input arguments (exactly one required):
 
         -i tag         train model on data in `tagged`
