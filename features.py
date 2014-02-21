@@ -102,8 +102,9 @@ def POS_tag_features(tags):
 # tag features for an individual token
 
 def tag_featset(tag_minus_2, tag_minus_1):
-    return ['t-1="{}"'.format(tag_minus_1),
-            't-2="{}",t-1="{}"'.format(tag_minus_2, tag_minus_1)]
+    t_1 = 't-1="{}"'.format(tag_minus_1)
+    t_2_1 = 't-2="{}",{}'.format(tag_minus_2, t_1)
+    return [t_1, t_2_1]
 
 # TODO NP-chunking features (from Collins 2002):
 #
