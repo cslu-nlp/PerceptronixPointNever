@@ -36,6 +36,15 @@ Option `-T` takes whitespace-delimited tokens (no tags) as input.
 
 For anything else, UTSL...
 
+Requirements
+------------
+
+Three 3rd-party Python modules are required:
+
+* `numpy`
+* `simplejson`
+* `jsonpickle`
+
 License
 -------
 

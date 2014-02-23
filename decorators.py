@@ -29,6 +29,7 @@ from functools import partial
 
 # "metadecorators"
 
+
 def Polite(object):
     """
     Decorator which turns simple functions into well-behaved decorators
@@ -46,6 +47,7 @@ def Polite(object):
 
 
 class PoliteClass(object):
+
     """
     Abstract polite decorator
     """
@@ -81,6 +83,7 @@ class PoliteClass(object):
 # container decorators
 
 class Listify(PoliteClass):
+
     """
     Decorator which converts the output of a generator to a list
 
@@ -103,6 +106,7 @@ class Listify(PoliteClass):
 
 
 class Setify(PoliteClass):
+
     """
     Decorator which converts the output of a generator to a set
     """
@@ -113,6 +117,7 @@ class Setify(PoliteClass):
 
 
 class Tupleify(PoliteClass):
+
     """ 
     Decorator which converts the output of a generator to a tuple
     """
@@ -125,6 +130,7 @@ class Tupleify(PoliteClass):
 # sorting
 
 class Sortify(PoliteClass):
+
     """ 
     Decorator which sorts the output of a generator(like) function
 
@@ -146,6 +152,7 @@ class Sortify(PoliteClass):
 # memoization
 
 class Memoize(PoliteClass):
+
     """
     Decorator which caches a function's return value each time it is
     called; if called later with the same arguments, the cached value is

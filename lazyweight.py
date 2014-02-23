@@ -26,6 +26,7 @@
 
 from __future__ import division
 
+
 class LazyWeight(object):
 
     """
@@ -38,10 +39,11 @@ class LazyWeight(object):
     "real" weight (i.e., if this wasn't part of an averaged perceptron).
     Secondly, we store the last time this weight was updated. These two 
     additional numbers work together as follows. When we need the real 
-    value of the summed weight (for inference), we "evaluate" the summed 
-    weight by adding to it the real weight multipled by the time elapsed.
+    value of the summed weight (for inference), we "freshen" the summed 
+    weight by adding to it the product of the real weight and the time
+    elapsed.
 
-    While passing around the time of the outer class is suboptimal, one
+    While passing around the "timer" of the outer class is suboptimal, one
     advantage of this format is that we can store weights and their times 
     in the same place, reducing the number of redundant hashtable lookups 
     required.
@@ -74,7 +76,7 @@ class LazyWeight(object):
     def __repr__(self):
         return '{}({})'.format(self.__class__.__name__, self.__dict__)
 
-    def _evaluate(self, time):
+    def _freshen(self, time):
         """
         This function applies queued updates and freshens the timestamp, 
         and, should be called any time the value of a weight is used or
@@ -89,12 +91,12 @@ class LazyWeight(object):
         """
         Return an up-to-date sum of weights
         """
-        self._evaluate(time)
+        self._freshen(time)
         return self.summed_weight
 
     def update(self, time, value):
         """
         Bring sum of weights up to date, then add `value` to the weight
         """
-        self._evaluate(time)
+        self._freshen(time)
         self.weight += value

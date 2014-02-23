@@ -28,7 +28,7 @@ from __future__ import division
 
 from string import digits
 
-from decorators import Listify
+from decorators import Listify, Memoize
 
 PRE_SUF_MAX = 4
 LEFT_PAD = ['<S1>', '<S0>']
@@ -56,16 +56,17 @@ RIGHT_PAD = ['</S0>', '</S1>']
 # t-1=X: previous tag
 # t-2=X,t-1=X: previous two tags
 
+
 @Listify
-def POS_token_features(tokens):
+def extract_sent_efs(tokens):
     """
-    Given lists of tokens, extract all token-related features in the form
-    of a list of sets where each set contains the (non-zero) token-related
-    features for the corresponding token
+    Given a list of tokens, extract all emission-related features in the 
+    form of a list(list(str)) where each inner list contains a list of 
+    (non-null) features for the corresponding token
     """
     padded_tokens = LEFT_PAD + [t.lower() for t in tokens] + RIGHT_PAD
     for (i, ftoken) in enumerate(padded_tokens[2:-2]):
-        # even though `ftoken` is the current token, `i` is the index of 
+        # even though `ftoken` is the current token, `i` is the index of
         # two tokens back
         featset = ['b']  # initialize with bias term
         # tokens nearby
@@ -84,27 +85,44 @@ def POS_token_features(tokens):
         if any(c in digits for c in ftoken):
             featset.append('n')
         # contains an uppercase character?
-        if ftoken != tokens[i]: # which has no case folding
+        if ftoken != tokens[i]:  # which has no case folding
             featset.append('u')
         yield featset
 
+
 @Listify
-def POS_tag_features(tags):
+def extract_sent_tfs(tags):
     """
-    Given a list of tokens, extract trigram tag features; note that this
-    is only useful for training data; at inference time, we make calls to
-    tag_featset instead
+    Given a list of tags, extract trigram tag features
     """
-    padded_tags = LEFT_PAD + list(tags)
-    for i in xrange(len(padded_tags) - 1):
-        yield tag_featset(*padded_tags[i:i + 2])
+    # for the first two tokens, there are no tag features; these would be
+    # identical to the word features anyways
+    for _ in xrange(2):
+        yield []
+    # general case
+    for i in xrange(len(tags) - 2):
+        yield token_tfs(tags[i], tags[i + 1])
 
-# tag features for an individual token
+# functions to generate those tag features
 
-def tag_featset(tag_minus_2, tag_minus_1):
-    t_1 = 't-1="{}"'.format(tag_minus_1)
-    t_2_1 = 't-2="{}",{}'.format(tag_minus_2, t_1)
-    return [t_1, t_2_1]
+
+def bigram_tf(prev_tag):
+    return 't-1="{}"'.format(prev_tag)
+
+
+def trigram_tf(prev_prev_tag, bigram_feature_string):
+    return 't-2="{}",{}'.format(prev_prev_tag, bigram_feature_string)
+
+
+@Memoize
+@Listify
+def token_tfs(prev_prev_tag=None, prev_tag=None):
+    if not prev_tag:   # no tag history
+        return
+    bigram_tf_string = bigram_tf(prev_tag)
+    yield bigram_tf_string
+    if prev_prev_tag:  # at least two tags of history
+        yield trigram_tf(prev_prev_tag, bigram_tf_string)
 
 # TODO NP-chunking features (from Collins 2002):
 #
@@ -132,7 +150,7 @@ def tag_featset(tag_minus_2, tag_minus_1):
 #
 # t-2,t-1=X,Y: previous two tags
 # t-1,t=X,Y: previous tag and current tag
-# t,t+1=X,Y: next two tags
+# t+1,t+2=X,Y: next two tags
 #
 # t-2,t-1,t=X,Y,Z: previous two tags and current tag
 # t-1,t,t+1=X,Y,Z: previous tag, current tag, and next tag
