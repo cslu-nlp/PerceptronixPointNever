@@ -2,10 +2,10 @@ Perceptronix Point Never
 ========================
 
 This is an implementation of part-of-speech tagging using the averaged 
-percetron to train an HMM, as described in Collins 2002. As in Collins'
-paper, the features used are the same as those used by Ratnaparkhi (1996),
-except that the same features (including orthographic features) are used 
-for "rare" and "non-rare" words.
+perceptron algorithm to train an HMM, as described in Collins 2002. As in 
+Collins' paper, the features used are the same as those used by Ratnaparkhi
+(1996),except that the same features (including orthographic features) are 
+used for "rare" and "non-rare" words.
 
 IOB NP-chunking support may be added at a later date.
 
