@@ -1,4 +1,4 @@
-#!/usr/bin/env python -O
+#!/usr/bin/env python -uO
 # encoding: UTF-8
 #
 # Copyright (C) 2014 Kyle Gorman & Steven Bedrick
@@ -42,9 +42,10 @@ from numpy.random import permutation
 # it should not be difficult to modify the code to use `random` instead.
 from numpy import arange, array, int16, int64, ones, unravel_index, zeros
 
-from features import *
 from decorators import Listify
 from lazyweight import LazyWeight
+from features import bigram_tf, extract_sent_efs, extract_sent_tfs, \
+                                extract_token_tfs, trigram_tf
 
 ## defaults and (pseudo)-globals
 INF = float('inf')
@@ -177,11 +178,6 @@ class PPN(object):
         for token_f in token_fs:
             tagptr[token_f].update(self.time, sgn)
 
-    def _bigram_transition_matrix(self):
-        """ 
-        Compute (dense) bigram transition matrix
-        """
-
     def _emission_weights(self, token_efs):
         """
         Use a vector of token features (representing a single state) to 
@@ -241,8 +237,7 @@ class PPN(object):
         ## general case
         for (t, token_efs) in enumerate(sent_efs[2:], 2):
             # combine bigram and trigram transition weights, using a 
-            # horrendously complex vectorization...an explanation follows:
-            #
+            # horrendously complex vectorization...explanation follows...
             # Each cell in the `btf_matrix` represents a transition from
             # the previous tag "t - 1" to the current tag "t". For each
             # cell in this matrix, we first determine the most likely
@@ -290,7 +285,7 @@ class PPN(object):
             best_tag = None
             best_weight = -INF
             # combine token feature vector with transition features
-            token_fs = token_efs + token_tfs(*tags[-2:])
+            token_fs = token_efs + extract_token_tfs(*tags[-2:])
             for (tag, tag_ws) in self.weights.iteritems():
                 weight = sum(tag_ws[f].get(self.time) for f in token_fs)
                 if weight > best_weight:
