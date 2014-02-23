@@ -208,14 +208,13 @@ class PPN(object):
         Tag a sentence from a list of sets of token features; note this
         returns a list of tags, not a list of (token, tag) tuples
         """
-        # FIXME dispatch these to greedy tagging for debugging
+        # FIXME dispatch these to greedy tagging (for debugging only)
         #return self._feature_tag_greedy(sent_efs)
         # /FIXME
         L = len(sent_efs)  # len of sentence, in tokens
         if L == 0:
             return []
-        # FIXME don't carry around the whole trellis /FIXME
-        #trellis = zeros((L, len(self.weights)), dtype=int64)
+        # initialize matrix of backpointers
         bckptrs = -ones((L, len(self.weights)), dtype=int16)
         ## special case for first state: just emission weights and no
         ## backpointers; there are no weights from previous states, and
@@ -232,13 +231,12 @@ class PPN(object):
         ## special case for the second state: we do not need trigram 
         ## transition weights because the same weights are found in the 
         ## `w-2` emission feature. 
-        # combine weight from previous state in the trellis with bigram
-        # transition weights and compute the max for each current state
-        # while storing backpointers
+        # combine weight from previous state with bigram transition weights
+        # and compute the max for each current state, storing backpointers
         t += 1
         (tx_weights, bckptrs[t, ]) = PPN.maxargmax(state_weights +
                                                    btf_matrix, axis=1)
-        # write these + emission weights into the trellis
+        # combine previous state, transition, and emission weights
         state_weights = tx_weights + self._emission_weights(sent_efs[t])
         ## general case
         for (t, token_efs) in enumerate(sent_efs[2:], 2):
@@ -264,12 +262,12 @@ class PPN(object):
                         (prev_prev_index, btf_string) in                  \
                         zip(bckptrs[t - 1, ], self.btf_strings)] for      \
                         tag_ws in self.weights.itervalues()])
-            # combine weight from previous state in the trellis with 
-            # transition weights and compute the max for each current 
-            # state while storing backpointers
+            # combine weight from previous state with transition weights
+            # and compute the max for each current state, storing 
+            # backpointers
             (tx_weights, bckptrs[t, ]) = PPN.maxargmax(state_weights +
                                                        tf_matrix, axis=1)
-            # write these + emission weights into the trellis
+            # combine previous state, transition, and emission weights
             state_weights = tx_weights + self._emission_weights(token_efs)
         # trace back to get best path
         max_index = state_weights.argmax()
@@ -278,7 +276,7 @@ class PPN(object):
             max_index = bckptrs[t, max_index]
             tags.append(self.index2tag[max_index])
             t -= 1
-        tags.reverse() # works in place
+        tags.reverse()  # NB: works in place
         return tags
 
     # deprecated: for debugging only
