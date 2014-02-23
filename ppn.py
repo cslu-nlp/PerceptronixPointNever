@@ -25,7 +25,6 @@
 # Perceptronix Point Never: a perceptron-based part-of-speech tagger
 #
 # TODO:
-#   * only keep two rows of the trellis
 #   * add IOB chunking support
 
 from __future__ import division
@@ -178,12 +177,6 @@ class PPN(object):
         for token_f in token_fs:
             tagptr[token_f].update(self.time, sgn)
 
-    def tag(self, tokens):
-        """
-        Tag a single `sentence` (list of tokens)
-        """
-        return zip(tokens, self._feature_tag(extract_sent_efs(tokens)))
-
     def _bigram_transition_matrix(self):
         """ 
         Compute (dense) bigram transition matrix
@@ -222,16 +215,16 @@ class PPN(object):
         if L == 0:
             return []
         # FIXME don't carry around the whole trellis /FIXME
-        trellis = zeros((L, len(self.weights)), dtype=int64)
+        #trellis = zeros((L, len(self.weights)), dtype=int64)
         bckptrs = -ones((L, len(self.weights)), dtype=int16)
         ## special case for first state: just emission weights and no
         ## backpointers; there are no weights from previous states, and
         ## there is no need for transition weights because the same
         ## weights are present in the `w-1` and `w-2` emission features
         t = 0
-        trellis[t, ] = self._emission_weights(sent_efs[t])
+        state_weights = self._emission_weights(sent_efs[t])
         if L == 1:
-            return [self.index2tag[trellis[t, ].argmax()]]
+            return [self.index2tag[state_weights.argmax()]]
         # compute (dense) bigram transition matrix
         btf_matrix = array([[tag_ws[btf_string].get(self.time) for      \
                                     btf_string in self.btf_strings] for \
@@ -243,10 +236,10 @@ class PPN(object):
         # transition weights and compute the max for each current state
         # while storing backpointers
         t += 1
-        (tx_weights, bckptrs[t, ]) = PPN.maxargmax(trellis[t - 1, ] +
+        (tx_weights, bckptrs[t, ]) = PPN.maxargmax(state_weights +
                                                    btf_matrix, axis=1)
         # write these + emission weights into the trellis
-        trellis[t, ] = tx_weights + self._emission_weights(sent_efs[t])
+        state_weights = tx_weights + self._emission_weights(sent_efs[t])
         ## general case
         for (t, token_efs) in enumerate(sent_efs[2:], 2):
             # combine bigram and trigram transition weights, using a 
@@ -274,12 +267,12 @@ class PPN(object):
             # combine weight from previous state in the trellis with 
             # transition weights and compute the max for each current 
             # state while storing backpointers
-            (tx_weights, bckptrs[t, ]) = PPN.maxargmax(trellis[t - 1, ] + 
+            (tx_weights, bckptrs[t, ]) = PPN.maxargmax(state_weights +
                                                        tf_matrix, axis=1)
             # write these + emission weights into the trellis
-            trellis[t, ] = tx_weights + self._emission_weights(token_efs)
+            state_weights = tx_weights + self._emission_weights(token_efs)
         # trace back to get best path
-        max_index = trellis[t, ].argmax()
+        max_index = state_weights.argmax()
         tags = [self.index2tag[max_index]]
         while t > 0:
             max_index = bckptrs[t, max_index]
@@ -307,6 +300,12 @@ class PPN(object):
                     best_tag = tag
             tags.append(best_tag)
         return tags
+
+    def tag(self, tokens):
+        """
+        Tag a single list(str) `sentence` 
+        """
+        return zip(tokens, self._feature_tag(extract_sent_efs(tokens)))
 
     def evaluate(self, sentences):
         """
