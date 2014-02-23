@@ -25,6 +25,7 @@
 
 from __future__ import division
 
+from numpy import array
 from functools import partial
 
 # "metadecorators"
@@ -32,7 +33,8 @@ from functools import partial
 
 def Polite(object):
     """
-    Decorator which turns simple functions into well-behaved decorators
+    Decorator which turns simple functions into well-behaved decorators;
+    this works when the decorator does not need any sort of state
     """
     def newd(function):
         newf = decorator(function)
@@ -54,9 +56,8 @@ class PoliteClass(object):
 
     def __init__(self, function):
         self.function = function
-
-    def __doc__(self):
-        return self.function.__doc__
+        self.__doc__ = self.function.__doc__
+        self.__name__ = self.function.__name__
 
     def __repr__(self):
         return repr(self.function)
@@ -85,7 +86,8 @@ class PoliteClass(object):
 class Listify(PoliteClass):
 
     """
-    Decorator which converts the output of a generator to a list
+    Decorator which converts the output of a generator (or whatever) to a 
+    list
 
     >>> @Listify
     ... def fibonacci(n):
@@ -98,6 +100,8 @@ class Listify(PoliteClass):
     ...         (F1, F2) = (F2, F1 + F2)
     >>> print fibonacci(10)
     [0, 1, 1, 2, 3, 5, 8, 13, 21, 34]
+    >>> print fibonacci.__doc__
+    Generator for the first n Fibonacci numbers
     """
 
     def __call__(self, *args, **kwargs):
@@ -108,7 +112,8 @@ class Listify(PoliteClass):
 class Setify(PoliteClass):
 
     """
-    Decorator which converts the output of a generator to a set
+    Decorator which converts the output of a generator (or whatever) to a 
+    set (hash-backed container for unique elements)
     """
 
     def __call__(self, *args, **kwargs):
@@ -119,12 +124,25 @@ class Setify(PoliteClass):
 class Tupleify(PoliteClass):
 
     """ 
-    Decorator which converts the output of a generator to a tuple
+    Decorator which converts the output of a generator (or whatever) to a 
+    tuple
     """
 
     def __call__(self, *args, **kwargs):
         call = self.function(*args, **kwargs)
         return tuple(call) if call != None else ()
+
+
+class Arrayify(PoliteClass):
+    
+    """
+    Decorator which converts the output of a generator (or whatever) to
+    a numpy array
+    """
+
+    def __call__(self, *args, **kwargs):
+        call = self.function(*args, **kwargs)
+        return array(list(call) if call != None else [])
 
 
 # sorting
@@ -164,17 +182,21 @@ class Memoize(PoliteClass):
 
     >>> @Memoize
     ... def fibonacci(n):
-    ...     'A recursive Fibonacci number function'
+    ...     'A recursive Fibonacci number function that actually works'
     ...     if n in (0, 1):
     ...         return n
     ...     return fibonacci(n - 1) + fibonacci(n - 2)
     >>> print fibonacci(100)
     354224848179261915075
+    >>> print fibonacci.__doc__
+    A recursive Fibonacci number function that actually works
     """
 
     def __init__(self, function):
-        self.function = function
         self.cache = {}
+        self.function = function
+        self.__doc__ = function.__doc__
+        self.__name__ = function.__name__
 
     def __call__(self, *args, **kwargs):
         if not hasattr(args, '__hash__'):  # uncacheable
