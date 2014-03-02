@@ -60,8 +60,8 @@ RIGHT_PAD = ['</S0>', '</S1>']
 @Listify
 def extract_sent_efs(tokens):
     """
-    Given a list of tokens, extract all emission-related features in the 
-    form of a list(list(str)) where each inner list contains a list of 
+    Given a list of tokens, extract all emission-related features in the
+    form of a list(list(str)) where each inner list contains a list of
     (non-null) features for the corresponding token
     """
     padded_tokens = LEFT_PAD + [t.lower() for t in tokens] + RIGHT_PAD
@@ -124,10 +124,7 @@ def extract_token_tfs(prev_prev_tag=None, prev_tag=None):
     if prev_prev_tag:  # at least two tags of history
         yield trigram_tf(prev_prev_tag, bigram_tf_string)
 
-# TODO NP-chunking features (from Collins 2002):
-#
-# def NPC_token_features(tokens):
-# def NPC_tag_features(tags):
+# TODO NP-chunking features (from Collins 2002 via Ratnaparkhi 1996):
 #
 # b: bias (omnipresent)
 #
@@ -142,16 +139,16 @@ def extract_token_tfs(prev_prev_tag=None, prev_tag=None):
 # w,w+1=X,Y: current token and next token
 # w+1,w+2=X,Y: next two tokens
 #
-# t-1=X: previous tag
-# t-2=X: two tags back
-# t=X: current tag
-# t+1=X: next tag
-# t+2=X: two tags ahead
+# t-1=X: previous POS tag
+# t-2=X: two POS tags back
+# t=X: current POS tag
+# t+1=X: next POS tag
+# t+2=X: two POS tags ahead
 #
-# t-2,t-1=X,Y: previous two tags
-# t-1,t=X,Y: previous tag and current tag
-# t+1,t+2=X,Y: next two tags
+# t-2,t-1=X,Y: previous two POS tags
+# t-1,t=X,Y: previous POS tag and current POS tag
+# t+1,t+2=X,Y: next two POS tags
 #
-# t-2,t-1,t=X,Y,Z: previous two tags and current tag
-# t-1,t,t+1=X,Y,Z: previous tag, current tag, and next tag
-# t,t+1,t+2=X,Y,Z: current tag and next two tags
+# t-2,t-1,t=X,Y,Z: previous two POS tags and current POS tag
+# t-1,t,t+1=X,Y,Z: previous POS tag, current POS tag, and next POS tag
+# t,t+1,t+2=X,Y,Z: current POS tag and next two POS tags

@@ -31,24 +31,24 @@ class LazyWeight(object):
 
     """
     This class represents an individual weight in an averaged perceptron
-    as a signed integer. It allows for several subtle optimizations. 
-    First, as the name suggests, the `summed_weight` variable is lazily 
+    as a signed integer. It allows for several subtle optimizations.
+    First, as the name suggests, the `summed_weight` variable is lazily
     evaluated (i.e., computed only when needed). This summed weight is the
-    one used in actual inference: we need not average explicitly. Lazy 
+    one used in actual inference: we need not average explicitly. Lazy
     evaluation requires us to store two other numbers. First, we store the
     "real" weight (i.e., if this wasn't part of an averaged perceptron).
-    Secondly, we store the last time this weight was updated. These two 
-    additional numbers work together as follows. When we need the real 
-    value of the summed weight (for inference), we "freshen" the summed 
+    Secondly, we store the last time this weight was updated. These two
+    additional numbers work together as follows. When we need the real
+    value of the summed weight (for inference), we "freshen" the summed
     weight by adding to it the product of the real weight and the time
     elapsed.
 
     While passing around the "timer" of the outer class is suboptimal, one
-    advantage of this format is that we can store weights and their times 
-    in the same place, reducing the number of redundant hashtable lookups 
+    advantage of this format is that we can store weights and their times
+    in the same place, reducing the number of redundant hashtable lookups
     required.
 
-    # initialize 
+    # initialize
     >>> t = 0
     >>> lw = LazyWeight(t, 1)
     >>> lw.get(t)
@@ -78,7 +78,7 @@ class LazyWeight(object):
 
     def _freshen(self, time):
         """
-        This function applies queued updates and freshens the timestamp, 
+        This function applies queued updates and freshens the timestamp,
         and, should be called any time the value of a weight is used or
         modified
         """

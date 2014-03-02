@@ -31,23 +31,6 @@ from functools import partial
 # "metadecorators"
 
 
-def Polite(object):
-    """
-    Decorator which turns simple functions into well-behaved decorators;
-    this works when the decorator does not need any sort of state
-    """
-    def newd(function):
-        newf = decorator(function)
-        newf.__doc__ = function.__doc__
-        newf.__name__ = function.__name__
-        newf.__dict__.update(function.__dict__)
-        return newf
-    newd.__doc__ = decorator.__doc__
-    newd.__name__ = decorator.__name__
-    newd.__dict__.update(decorator.__dict__)
-    return newd
-
-
 class PoliteClass(object):
 
     """
@@ -78,7 +61,7 @@ class PoliteClass(object):
         """
         Access instance methods
         """
-        return functools.partial(self.__call__, obj)
+        return partial(self.__call__, obj)
 
 
 # container decorators
@@ -86,7 +69,7 @@ class PoliteClass(object):
 class Listify(PoliteClass):
 
     """
-    Decorator which converts the output of a generator (or whatever) to a 
+    Decorator which converts the output of a generator (or whatever) to a
     list
 
     >>> @Listify
@@ -112,7 +95,7 @@ class Listify(PoliteClass):
 class Setify(PoliteClass):
 
     """
-    Decorator which converts the output of a generator (or whatever) to a 
+    Decorator which converts the output of a generator (or whatever) to a
     set (hash-backed container for unique elements)
     """
 
@@ -123,8 +106,8 @@ class Setify(PoliteClass):
 
 class Tupleify(PoliteClass):
 
-    """ 
-    Decorator which converts the output of a generator (or whatever) to a 
+    """
+    Decorator which converts the output of a generator (or whatever) to a
     tuple
     """
 
@@ -134,7 +117,7 @@ class Tupleify(PoliteClass):
 
 
 class Arrayify(PoliteClass):
-    
+
     """
     Decorator which converts the output of a generator (or whatever) to
     a numpy array
@@ -149,7 +132,7 @@ class Arrayify(PoliteClass):
 
 class Sortify(PoliteClass):
 
-    """ 
+    """
     Decorator which sorts the output of a generator(like) function
 
     >>> @Sortify
