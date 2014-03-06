@@ -1,0 +1,42 @@
+#!/usr/bin/env python -O
+# confusion: compute POS tag confusion matrix
+# Kyle Gorman <gormanky@ohsu.edu>
+
+from csv import DictWriter
+from sys import argv, stdout
+from collections import defaultdict
+
+USAGE = """USAGE: {} [HYPOTHESES] [GOLD] > [SINK]
+Hypothesized tags are rows, gold tags are columns.""".format(__file__)
+
+
+def str2tuple(string):
+    """
+    Convert 'token/tag' string to (token, tag) tuple
+    """
+    i = string.rfind('/')
+    return (string[:i], string[i + 1:])
+
+
+ 
+if __name__ == '__main__':
+    # check arguments
+    if len(argv) != 3:
+        exit(USAGE)
+    # initialize sparse confusion matrix
+    confusions = defaultdict(lambda: defaultdict(int))
+    # tag "alphabet"
+    alphabet = set()
+    with open(argv[1], 'r') as hypothesis, open(argv[2], 'r') as gold:
+        for (hyp_line, gld_line) in zip(hypothesis, gold):
+            for (hyp_tag, gld_tag) in zip(hyp_line.strip().split(),
+                                          gld_line.strip().split()):
+                confusions[hyp_tag][gld_tag] += 1
+                alphabet.add(hyp_tag)
+                alphabet.add(gld_tag)
+    # initialize sink
+    alphabet = sorted(alphabet)
+    sink = DictWriter(stdout, fieldnames=['hypothesis'] + alphabet)
+    sink.writeheader()
+    for hyp_tag in alphabet:
+        sink.writerow(confusions[hyp_tag])
