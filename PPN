@@ -49,7 +49,7 @@ from features import bigram_tf, extract_sent_efs, extract_sent_tfs, \
 
 ## defaults and (pseudo)-globals
 INF = float('inf')
-VERSION_NUMBER = 0.4
+VERSION_NUMBER = 0.5
 TRAINING_ITERATIONS = 10
 
 # set jsonpickle to do it human-readable
