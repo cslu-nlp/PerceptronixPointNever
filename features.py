@@ -31,8 +31,8 @@ from string import digits
 from decorators import Listify, Memoize
 
 PRE_SUF_MAX = 4
-LEFT_PAD = ['<S1>', '<S0>']
-RIGHT_PAD = ['</S0>', '</S1>']
+LEFT_PAD = ["<S1>", "<S0>"]
+RIGHT_PAD = ["</S0>", "</S1>"]
 
 # features for POS tagging (from Ratnaparkhi 1996, but ignoring the
 # distinction between "rare" and "non-rare" words as in Collins 2002):
@@ -70,14 +70,14 @@ def extract_sent_efs(tokens):
         # two tokens back
         featset = ['b']  # initialize with bias term
         # tokens nearby
-        featset.append('w-2="{}"'.format(padded_tokens[i]))
-        featset.append('w-1="{}"'.format(padded_tokens[i + 1]))
-        featset.append('w="{}"'.format(ftoken))  # == padded_tokens[i + 2]
-        featset.append('w+1="{}"'.format(padded_tokens[i + 3]))
-        featset.append('w+2="{}"'.format(padded_tokens[i + 4]))
+        featset.append("w-2='{}'".format(padded_tokens[i]))
+        featset.append("w-1='{}'".format(padded_tokens[i + 1]))
+        featset.append("w='{}'".format(ftoken))  # == padded_tokens[i + 2]
+        featset.append("w+1='{}'".format(padded_tokens[i + 3]))
+        featset.append("w+2='{}'".format(padded_tokens[i + 4]))
         for j in xrange(1, 1 + min(len(ftoken), PRE_SUF_MAX)):
-            featset.append('p({})="{}"'.format(j, ftoken[:+j]))  # prefix
-            featset.append('s({})="{}"'.format(j, ftoken[-j:]))  # suffix
+            featset.append("p({})='{}'".format(j, ftoken[:+j]))  # prefix
+            featset.append("s({})='{}'".format(j, ftoken[-j:]))  # suffix
         # contains a hyphen?
         if any(c == '-' for c in ftoken):
             featset.append('h')
@@ -107,11 +107,11 @@ def extract_sent_tfs(tags):
 
 
 def bigram_tf(prev_tag):
-    return 't-1="{}"'.format(prev_tag)
+    return "t-1='{}'".format(prev_tag)
 
 
 def trigram_tf(prev_prev_tag, bigram_feature_string):
-    return 't-2="{}",{}'.format(prev_prev_tag, bigram_feature_string)
+    return "t-2='{}',{}".format(prev_prev_tag, bigram_feature_string)
 
 
 @Memoize

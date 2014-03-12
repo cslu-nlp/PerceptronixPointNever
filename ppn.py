@@ -58,7 +58,7 @@ jsonpickle.set_encoder_options('simplejson', indent=' ')
 # usage string
 USAGE = """Perceptronix Point Never {0}, by Kyle Gorman and Steven Bedrick
 
-    python {1} [-i|-p input] [-D|-E|-T output] [-t {2}] [-h] [-v]
+    {1} [-i|-p input] [-D|-E|-T output] [-t {2}] [-h] [-v]
 
     Input arguments (exactly one required):
 
@@ -90,6 +90,9 @@ class PPN(object):
     Perceptronix Point Never: an HMM tagger with fast discriminative
     training using the perceptron algorithm
     """
+    
+    def __repr__(self):
+        return '{}(time = {})'.format(self.__class__.__name__, self.time)
 
     def __init__(self, sentences=None, T=1):
         """
@@ -111,7 +114,9 @@ class PPN(object):
         """
         Create new PPN instance from serialized JSON from `source`
         """
-        return jsonpickle.decode(source.read(), keys=True)
+        retval = jsonpickle.decode(source.read(), keys=True)
+        retval._update_cache()
+        return retval
 
     def dump(self, sink):
         """
@@ -130,6 +135,13 @@ class PPN(object):
             (tokens, tags) = zip(*sentence)
             yield (tags, extract_sent_efs(tokens), extract_sent_tfs(tags))
 
+    def _update_cache(self):
+        """
+        cache mapping from integer index to tag, and strings representing bigram tag features
+        """
+        self.index2tag = {i: tag for (i, tag) in enumerate(self.weights)}
+        self.btf_strings = [bigram_tf(tag) for tag in self.weights]
+
     def train(self, sentences, T=1):
         """
         Perform `T` epochs of training using data from `sentences`, a
@@ -143,8 +155,7 @@ class PPN(object):
             for tag in tags:
                 self.weights[tag]
         # cache tag number and bigram tag feature strings
-        self.index2tag = {i: tag for (i, tag) in enumerate(self.weights)}
-        self.btf_strings = [bigram_tf(tag) for tag in self.weights]
+        self._update_cache()
         # begin training
         logging.info('Beginning {} epochs of training...'.format(T))
         for t in xrange(1, T + 1):
