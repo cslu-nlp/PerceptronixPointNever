@@ -44,7 +44,6 @@ def tuple2str(wt_tuple):
 
  
 if __name__ == '__main__':
-    # get universal tagset mappings
     for line in fileinput.input():
         sentence = [str2tuple(wt) for wt in line.strip().split()]
         print ' '.join(tuple2str((w, PTB2U[t])) for (w, t) in sentence)
