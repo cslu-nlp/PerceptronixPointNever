@@ -481,8 +481,7 @@ if __name__ == '__main__':
         logging.info('Tagging data from "{}".'.format(untagged_source))
         try:
             for tokens in untagged_reader(untagged_source):
-                print ' '.join(tuple2str(token, tag) for
-                               (token, tag) in ppn.tag(tokens))
+                print ' '.join(tuple2str(wt) for wt in ppn.tag(tokens))
         except IOError as err:
             logging.error(err)
             exit(1)

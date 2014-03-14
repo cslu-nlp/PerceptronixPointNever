@@ -17,7 +17,6 @@ def str2tuple(string):
     i = string.rfind('/')
     return (string[:i], string[i + 1:])
 
-
  
 if __name__ == '__main__':
     # check arguments
@@ -29,8 +28,9 @@ if __name__ == '__main__':
     alphabet = set()
     with open(argv[1], 'r') as hypothesis, open(argv[2], 'r') as gold:
         for (hyp_line, gld_line) in zip(hypothesis, gold):
-            for (hyp_tag, gld_tag) in zip(hyp_line.strip().split(),
-                                          gld_line.strip().split()):
+            hyp_tags = [str2tuple(T)[1] for T in hyp_line.strip().split()]
+            gld_tags = [str2tuple(T)[1] for T in gld_line.strip().split()]
+            for (hyp_tag, gld_tag) in zip(hyp_tags, gld_tags):
                 confusions[hyp_tag][gld_tag] += 1
                 alphabet.add(hyp_tag)
                 alphabet.add(gld_tag)
@@ -39,4 +39,8 @@ if __name__ == '__main__':
     sink = DictWriter(stdout, fieldnames=['hypothesis'] + alphabet)
     sink.writeheader()
     for hyp_tag in alphabet:
-        sink.writerow(confusions[hyp_tag])
+        hyp_tag_ptr = confusions[hyp_tag]
+        row = {'hypothesis': hyp_tag}
+        for gld_tag in alphabet:
+            row[gld_tag] = hyp_tag_ptr[gld_tag]
+        sink.writerow(row)

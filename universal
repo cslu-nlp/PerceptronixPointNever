@@ -5,22 +5,28 @@
 
 import fileinput
 
-PTB2UNI= {'!': '.', '#': '.', '$': '.', "''": '.', '(': '.', ')': '.', 
-          ',': '.', '-LRB-': '.', '-RRB-': '.', '.': '.', ':': '.', 
-          '?': '.', 'CC': 'CONJ', 'CD': 'NUM', 'CD|RB': 'X', 'DT': 'DET', 
-          'EX': 'DET', 'FW': 'X', 'IN': 'ADP', 'IN|RP': 'ADP', 'JJ': 'ADJ',
-          'JJR': 'ADJ', 'JJRJR': 'ADJ', 'JJS': 'ADJ', 'JJ|RB': 'ADJ', 
-          'JJ|VBG': 'ADJ', 'LS': 'X', 'MD': 'VERB', 'NN': 'NOUN', 
-          'NNP': 'NOUN', 'NNPS': 'NOUN', 'NNS': 'NOUN', 'NN|NNS': 'NOUN', 
-          'NN|SYM': 'NOUN', 'NN|VBG': 'NOUN', 'NP': 'NOUN', 'PDT': 'DET', 
-          'POS': 'PRT', 'PRP': 'PRON', 'PRP$': 'PRON', 'PRP|VBP': 'PRON', 
-          'PRT': 'PRT', 'RB': 'ADV', 'RBR': 'ADV', 'RBS': 'ADV', 
-          'RB|RP': 'ADV', 'RB|VBG': 'ADV', 'RN': 'X', 'RP': 'PRT', 
-          'SYM': 'X', 'TO': 'PRT', 'UH': 'X', 'VB': 'VERB', 'VBD': 'VERB', 
-          'VBD|VBN': 'VERB', 'VBG': 'VERB', 'VBG|NN': 'VERB', 
-          'VBN': 'VERB', 'VBP': 'VERB', 'VBP|TO': 'VERB', 'VBZ': 'VERB', 
-          'VP': 'VERB', 'WDT': 'DET', 'WH': 'X', 'WP': 'PRON', 
-          'WP$': 'PRON', 'WRB': 'ADV', '``': '.'}
+PTB2U = {'!': '.', '#': '.', '$': '.', "''": '.', '(': '.', ')': '.', 
+         ',': '.', '-LRB-': '.', '-RRB-': '.', '.': '.', ':': '.', 
+         '?': '.', 'CC': 'CONJ', 'CD': 'NUM', 'CD|RB': 'X', 'DT': 'DET', 
+         'EX': 'DET', 'FW': 'X', 'IN': 'ADP', 'IN|RP': 'ADP', 'JJ': 'ADJ',
+         'JJR': 'ADJ', 'JJRJR': 'ADJ', 'JJS': 'ADJ', 'JJ|RB': 'ADJ', 
+         'JJ|VBG': 'ADJ', 'LS': 'X', 'MD': 'VERB', 'NN': 'NOUN', 
+         'NNP': 'NOUN', 'NNPS': 'NOUN', 'NNS': 'NOUN', 'NN|NNS': 'NOUN', 
+         'NN|SYM': 'NOUN', 'NN|VBG': 'NOUN', 'NP': 'NOUN', 'PDT': 'DET', 
+         'POS': 'PRT', 'PRP': 'PRON', 'PRP$': 'PRON', 'PRP|VBP': 'PRON', 
+         'PRT': 'PRT', 'RB': 'ADV', 'RBR': 'ADV', 'RBS': 'ADV', 
+         'RB|RP': 'ADV', 'RB|VBG': 'ADV', 'RN': 'X', 'RP': 'PRT', 
+         'SYM': 'X', 'TO': 'PRT', 'UH': 'X', 'VB': 'VERB', 'VBD': 'VERB', 
+         'VBD|VBN': 'VERB', 'VBG': 'VERB', 'VBG|NN': 'VERB', 
+         'VBN': 'VERB', 'VBP': 'VERB', 'VBP|TO': 'VERB', 'VBZ': 'VERB', 
+         'VP': 'VERB', 'WDT': 'DET', 'WH': 'X', 'WP': 'PRON', 
+         'WP$': 'PRON', 'WRB': 'ADV', '``': '.', 
+         # FIXME rules for Switchboard...
+         'BES': 'VERB', 'HVS': 'VERB',  'XX': 'X', 'GW': 'X',
+         # FIXME rules for CHILDES...
+         'AUX': 'VERB', 'COP': 'VERB', 'NOT': 'ADV', 'COMP': 'ADP'}
+        
+         
     
 def str2tuple(string):
     """
@@ -41,4 +47,4 @@ if __name__ == '__main__':
     # get universal tagset mappings
     for line in fileinput.input():
         sentence = [str2tuple(wt) for wt in line.strip().split()]
-        print ' '.join(tuple2str((w, PTB2UNI[t])) for (w, t) in sentence)
+        print ' '.join(tuple2str((w, PTB2U[t])) for (w, t) in sentence)

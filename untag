@@ -4,7 +4,7 @@
 
 import fileinput
 
-    
+
 def str2tuple(string):
     """
     Convert 'token/tag' string to (token, tag) tuple
@@ -12,13 +12,15 @@ def str2tuple(string):
     i = string.rfind('/')
     return (string[:i], string[i + 1:])
 
+
 def untag(sentence):
     """
     Given a list of tuples representing (token, tag) pairs, return only
     the token side
     """
     return [w for (w, _) in sentence]
- 
+
+
 if __name__ == '__main__':
     for line in fileinput.input():
         print ' '.join(untag(str2tuple(wt) for wt in line.strip().split()))
