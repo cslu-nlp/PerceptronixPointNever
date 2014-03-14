@@ -58,7 +58,7 @@ MIT License (BSD-like); see source.
 What's with the name?
 ---------------------
 
-It is an homage to experimental musician Daniel Lopatin, who performs under the name [Oneohtrix Point Never](pointnever.com).
+It is an homage to experimental musician Daniel Lopatin performing under the name [Oneohtrix Point Never](pointnever.com).
 
 Bugs, comments?
 ---------------
