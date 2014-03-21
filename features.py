@@ -124,6 +124,7 @@ def extract_token_tfs(prev_prev_tag=None, prev_tag=None):
     if prev_prev_tag:  # at least two tags of history
         yield trigram_tf(prev_prev_tag, bigram_tf_string)
 
+
 # TODO NP-chunking features (from Collins 2002 via Ratnaparkhi 1996):
 #
 # b: bias (omnipresent)
@@ -152,3 +153,8 @@ def extract_token_tfs(prev_prev_tag=None, prev_tag=None):
 # t-2,t-1,t=X,Y,Z: previous two POS tags and current POS tag
 # t-1,t,t+1=X,Y,Z: previous POS tag, current POS tag, and next POS tag
 # t,t+1,t+2=X,Y,Z: current POS tag and next two POS tags
+
+
+if __name__ == '__main__':
+    import doctest
+    doctest.testmod()

@@ -21,10 +21,12 @@
 # SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #
 # Perceptronix Point Never: a perceptron-based part-of-speech tagger
+#
 # lazyweight.py: a lazily-evaluated averaged perceptron weight
 
 
 from __future__ import division
+from ppntypes import time_t, weight_t
 
 
 class LazyWeight(object):
@@ -50,7 +52,7 @@ class LazyWeight(object):
 
     # initialize
     >>> t = 0
-    >>> lw = LazyWeight(t, 1)
+    >>> lw = LazyWeight(1, t)
     >>> lw.get(t)
     1
 
@@ -60,18 +62,18 @@ class LazyWeight(object):
     2
 
     # weight is now changed
-    >>> lw.update(t, -1)
+    >>> lw.update(-1, t)
     >>> t += 3
-    >>> lw.update(t, -1)
+    >>> lw.update(-1, t)
     >>> t += 3
     >>> lw.get(t)
     -1
     """
 
-    def __init__(self, time=0, weight=0):
-        self.weight = weight
-        self.summed_weight = weight
-        self.timestamp = time
+    def __init__(self, weight=0, time=0):
+        self.weight = weight_t(weight)
+        self.summed_weight = self.weight
+        self.timestamp = time_t(time)
 
     def __repr__(self):
         return '{}({})'.format(self.__class__.__name__, self.__dict__)
@@ -94,9 +96,14 @@ class LazyWeight(object):
         self._freshen(time)
         return self.summed_weight
 
-    def update(self, time, value):
+    def update(self, value, time):
         """
         Bring sum of weights up to date, then add `value` to the weight
         """
         self._freshen(time)
         self.weight += value
+
+
+if __name__ == '__main__':
+    import doctest
+    doctest.testmod()

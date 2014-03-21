@@ -89,7 +89,7 @@ class Listify(PoliteClass):
 
     def __call__(self, *args, **kwargs):
         call = self.function(*args, **kwargs)
-        return list(call) if call != None else []
+        return list(call) if call != None else list()
 
 
 class Setify(PoliteClass):
@@ -101,7 +101,7 @@ class Setify(PoliteClass):
 
     def __call__(self, *args, **kwargs):
         call = self.function(*args, **kwargs)
-        return set(call) if call != None else set()
+        return set(call) if call is not None else set()
 
 
 class Tupleify(PoliteClass):
@@ -113,7 +113,7 @@ class Tupleify(PoliteClass):
 
     def __call__(self, *args, **kwargs):
         call = self.function(*args, **kwargs)
-        return tuple(call) if call != None else ()
+        return tuple(call) if call is not None else tuple()
 
 
 class Arrayify(PoliteClass):
@@ -125,7 +125,7 @@ class Arrayify(PoliteClass):
 
     def __call__(self, *args, **kwargs):
         call = self.function(*args, **kwargs)
-        return array(list(call) if call != None else [])
+        return array(list(call)) if call is not None else array()
 
 
 # sorting
@@ -147,7 +147,16 @@ class Sortify(PoliteClass):
 
     def __call__(self, *args, **kwargs):
         call = self.function(*args, **kwargs)
-        return sorted(call) if call != None else None
+        return sorted(call) if call is not None else list()
+
+
+# apply zip(*retval)
+
+class Zipstarify(PoliteClass):
+    
+    def __call__(self, *args, **kwargs):
+        call = self.function(*args, **kwargs)
+        return zip(*call) if call is not None else None
 
 
 # memoization
