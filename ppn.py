@@ -29,30 +29,23 @@
 
 from __future__ import division
 
-# FIXME
-import numpy
-numpy.set_printoptions(threshold=numpy.nan)
-
 import logging
 import jsonpickle
-# set jsonpickle to do it human-readable
-jsonpickle.set_encoder_options('simplejson', indent=' ')
 
 from time import time
-from collections import defaultdict, OrderedDict
+from collections import defaultdict
 
 from numpy.random import permutation
-# timeit tests suggest that for randomizing order of presentation, 
-# `permutation` is much faster than `random.shuffle`; if for some reason 
-# you are unable to use `numpy`, it should not be at all difficult to 
+# timeit tests suggest that for randomizing order of presentation,
+# `permutation` is much faster than `random.shuffle`; if for some reason
+# you are unable to use `numpy`, it should not be at all difficult to
 # modify the code to use `random` instead.
-from numpy import arange, unravel_index, zeros
+from numpy import arange, copy, uint16, unravel_index, zeros
 
 from lazyweight import LazyWeight
-from ppntypes import index_t, weight_t
 from decorators import Listify, Zipstarify
-from features import bigram_tf, extract_sent_efs, extract_sent_tfs, \
-                                extract_token_tfs, trigram_tf
+from features import bigram_tf, trigram_tf, extract_sent_efs, \
+    extract_sent_tfs
 
 ## defaults and (pseudo)-globals
 VERSION_NUMBER = 0.7
@@ -99,7 +92,7 @@ class PPN(object):
     becomes that client's responsibility to maintain the bigram transition
     cache (using _update_cache())
     """
-    
+
     def __repr__(self):
         return '{}(time = {})'.format(self.__class__.__name__, self.time)
 
@@ -111,7 +104,7 @@ class PPN(object):
         self.time = 0
         # structure of the weights:
         #
-        # * outer keys are feature strings 
+        # * outer keys are feature strings
         # * inter keys are tag strings
         # * values are LazyWeights
         self.weights = defaultdict(lambda: defaultdict(LazyWeight))
@@ -149,26 +142,27 @@ class PPN(object):
             (tokens, tags) = zip(*sentence)
             yield (tags, extract_sent_efs(tokens), extract_sent_tfs(tags))
 
-    def _update_tagset_cache(self, corpus_tags):
+    def _update_tagset_cache(self, corpus_tags=None):
         """
         Update the cache of tagset information (and also the transition
         cache, which uses the relevant indices)
         """
         # tagset
-        for tags in corpus_tags:
-            self.tagset.update(tags)
+        if corpus_tags:
+            for tags in corpus_tags:
+                self.tagset.update(tags)
         self.Lt = len(self.tagset)
-        # map between tag and matrix indices
+        # mapp between tag, index, and string
         self.idx2tag = {i: tag for (i, tag) in enumerate(self.tagset)}
         self.tag2idx = {tag: i for (i, tag) in self.idx2tag.iteritems()}
-        self.idx2bigram_tfs = {i: bigram_tf(prev_tag) for (i, prev_tag) \
+        self.idx2bigram_tfs = {i: bigram_tf(prev_tag) for (i, prev_tag)
                                in self.idx2tag.iteritems()}
 
     def _update_transition_cache(self):
         """
         Update the cache of bigram transition weights
         """
-        self.btf_weights = zeros((self.Lt, self.Lt), dtype=weight_t)
+        self.btf_weights = zeros((self.Lt, self.Lt), dtype=int)
         for (i, bigram_tfs) in self.idx2bigram_tfs.iteritems():
             col = self.btf_weights[:, i]
             for (tag, weight) in self.weights[bigram_tfs].iteritems():
@@ -189,22 +183,21 @@ class PPN(object):
             tic = time()
             epoch_wrong = 0
             for (g_tags, sent_efs, sent_tfs) in permutation(zip(
-                                   corpus_tags, corpus_efs, corpus_tfs)):
+                    corpus_tags, corpus_efs, corpus_tfs)):
                 # compare hypothesized tagging to gold standard
                 self._update_transition_cache()
                 h_tags = self._feature_tag(sent_efs)
                 # score
-                for (h_tag, g_tag, token_efs, token_tfs) in \
-                                zip(h_tags, g_tags, sent_efs, sent_tfs):
+                for (h_tag, g_tag, token_efs, token_tfs) in zip(h_tags,
+                            g_tags, sent_efs, sent_tfs):
                     if h_tag == g_tag:
                         continue
-                    # reward and punish
                     self._update(token_efs + token_tfs, g_tag, h_tag)
                     epoch_wrong += 1
                 self.time += 1
             # compute accuracy
-            acc = 1. - (epoch_wrong / epoch_size)
-            logging.info('Epoch {:02} acc.: {:.04f}'.format(t, acc) +
+            accuracy = 1. - (epoch_wrong / epoch_size)
+            logging.info('Epoch {:02} acc.: {:.04f}'.format(t, accuracy) +
                          ' ({}s elapsed).'.format(int(time() - tic)))
         self._update_transition_cache()
         logging.info('Training complete.')
@@ -224,7 +217,7 @@ class PPN(object):
         Use a vector of token features (representing a single state) to
         compute emission weights for a state with `token_efs` features
         """
-        e_weights = zeros(self.Lt, dtype=weight_t)
+        e_weights = zeros(self.Lt, dtype=int)
         for feat in token_efs:
             for (tag, weight) in self.weights[feat].iteritems():
                 e_weights[self.tag2idx[tag]] += weight.get(self.time)
@@ -248,45 +241,45 @@ class PPN(object):
         Tag a sentence from a list of sets of token features; note this
         returns a list of tags, not a list of (token, tag) tuples
         """
-        ## nomenclature:
-        ## emission weights: weight for word-given-tag, not taking any
-        ##                   context into account
-        ## transition weights: weight for coming into a state at time `t`
-        ## state weights: weight for _being_ in a state at time `t`,
-        ##                the sum of emission weights and trellis weights
+        # nomenclature:
+        # emission weights: weight for word-given-tag, not taking any
+        # context into account
+        # transition weights: weight for coming into a state at time `t`
+        # state weights: weight for _being_ in a state at time `t`,
+        # the sum of emission weights and trellis weights
         L = len(sent_efs)  # len of sentence, in tokens
         if L == 0:
             return []
         # initialize matrix of backpointers
-        bckptrs = zeros((L, len(self.idx2tag)), dtype=index_t)
-        ## special case for first state: no weights from previous states,
-        ## and no need for transition weights because the "start" features
-        ## are present in the `w-1` and `w-2` emission features, so
-        ## state weights are just emission weights
+        bckptrs = zeros((L, len(self.idx2tag)), dtype=uint16)
+        # special case for first state: no weights from previous states,
+        # and no need for transition weights because the "start" features
+        # are present in the `w-1` and `w-2` emission features, so
+        # state weights are just emission weights
         t = 0
         s_weights = self._e_weights(sent_efs[t])
         if L == 1:
             return [self.idx2tag[s_weights.argmax()]]
-        ## special case for the second state: we do not need trigram
-        ## transition weights because the same weights are found in the
-        ## `w-2` emission feature.
+        # special case for the second state: we do not need trigram
+        # transition weights because the same weights are found in the
+        # `w-2` emission feature.
         t += 1
-        # add in bigram transition weights
+        # add in bigram transition weights and compute max
         (bckptrs[t, ], t_weights) = PPN.argmaxmax(s_weights +
                                                   self.btf_weights, axis=1)
         # combine previous state, transition, and emission weights
         s_weights = t_weights + self._e_weights(sent_efs[t])
         for (t, token_efs) in enumerate(sent_efs[2:], 2):
-            tf_weights = self.btf_weights[:, :]
+            # make copy of bigram transition weights matrix
+            tf_weights = copy(self.btf_weights)
+            # add trigram transition weights to copy
             for (idx, prev_idx) in enumerate(bckptrs[t - 1, ]):
-                row = tf_weights[idx, :]
-                #col = tf_weights[:, idx]
+                col = tf_weights[:, idx]
                 trigram_tfs = trigram_tf(self.idx2tag[bckptrs[t - 2, idx]],
                                          self.idx2bigram_tfs[prev_idx])
-                featptr = self.weights[trigram_tfs] # this gets flattened
-                for (tag, weight) in featptr.iteritems():
-                    row[self.tag2idx[tag]] += weight.get(self.time)
-                    #col[self.tag2idx[tag]] += weight.get(self.time)
+                for (tag, weight) in self.weights[trigram_tfs].iteritems():
+                    col[self.tag2idx[tag]] += weight.get(self.time)
+            # add in transition weights and compute max
             (bckptrs[t, ], t_weights) = PPN.argmaxmax(s_weights +
                                                       tf_weights, axis=1)
             # combine previous state, transition, and emission weights
@@ -349,8 +342,8 @@ if __name__ == '__main__':
 
     from sys import argv
     from gzip import GzipFile
+    from nltk import str2tuple, tuple2str
     from getopt import getopt, GetoptError
-    from nltk import str2tuple, tuple2str, untag
 
     # helpers
 
@@ -453,8 +446,8 @@ if __name__ == '__main__':
         logging.info('Evaluating on data from "{}".'.format(test_source))
         try:
             with open(test_source, 'r') as source:
-                accuracy = ppn.evaluate(tag_reader(test_source))
-                print 'Accuracy: {:.04f}'.format(accuracy)
+                print 'Accuracy: {:.04f}'.format(ppn.evaluate(
+                                                 tag_reader(test_source)))
         except IOError as err:
             logging.error(err)
             exit(1)

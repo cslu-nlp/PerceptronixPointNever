@@ -26,7 +26,6 @@
 
 
 from __future__ import division
-from ppntypes import time_t, weight_t
 
 
 class LazyWeight(object):
@@ -71,9 +70,9 @@ class LazyWeight(object):
     """
 
     def __init__(self, weight=0, time=0):
-        self.weight = weight_t(weight)
+        self.weight = weight
         self.summed_weight = self.weight
-        self.timestamp = time_t(time)
+        self.timestamp = time
 
     def __repr__(self):
         return '{}({})'.format(self.__class__.__name__, self.__dict__)

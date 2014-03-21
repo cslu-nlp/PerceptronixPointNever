@@ -103,20 +103,30 @@ def extract_sent_tfs(tags):
     for i in xrange(len(tags) - 2):
         yield extract_token_tfs(tags[i], tags[i + 1])
 
+
 # functions to generate those tag features
 
 
 def bigram_tf(prev_tag):
+    """
+    Create bigram feature string
+    """
     return "t-1='{}'".format(prev_tag)
 
 
 def trigram_tf(prev_prev_tag, bigram_feature_string):
+    """
+    Create trigram feature string
+    """
     return "t-2='{}',{}".format(prev_prev_tag, bigram_feature_string)
 
 
 @Memoize
 @Listify
 def extract_token_tfs(prev_prev_tag=None, prev_tag=None):
+    """
+    Generate a bigram and trigram transition features for a single tag
+    """
     if not prev_tag:   # no tag history
         return
     bigram_tf_string = bigram_tf(prev_tag)

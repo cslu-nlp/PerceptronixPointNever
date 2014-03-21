@@ -153,7 +153,7 @@ class Sortify(PoliteClass):
 # apply zip(*retval)
 
 class Zipstarify(PoliteClass):
-    
+
     def __call__(self, *args, **kwargs):
         call = self.function(*args, **kwargs)
         return zip(*call) if call is not None else None
