@@ -38,16 +38,15 @@ For anything else, UTSL...
 A few Python-based scripts have been added to assist in tagging: 
 
 * `confusion` creates a tagging confusion matrix in CSV format
-* `universal` converts Penn Treebank tags to the Petrov et al. (2012) universal tagset
+* `universal` converts Penn Treebank tags to the Petrov et al. (2012) universal tagset; their results suggest that you may still want to train with a large tagset, and then convert to the universal tagset downstream
 * `untag` removes tags from data for performing experiments
 
 Requirements
 ------------
 
-Three 3rd-party Python modules are required:
+Two 3rd-party Python modules are required:
 
 * `numpy`
-* `simplejson`
 * `jsonpickle`
 
 License

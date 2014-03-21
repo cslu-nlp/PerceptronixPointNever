@@ -159,6 +159,7 @@ class PPN(object):
         Update the cache of bigram transition weights
         """
         self.btf_weights = zeros((self.Lt, self.Lt), dtype=int)
+        # tags at t are the first axis, tags at t - 1 are the second
         for (i, bigram_tfs) in self.idx2bigram_tfs.iteritems():
             col = self.btf_weights[:, i]
             for (tag, weight) in self.weights[bigram_tfs].iteritems():
@@ -180,10 +181,9 @@ class PPN(object):
             epoch_wrong = 0
             for (g_tags, sent_efs, sent_tfs) in permutation(zip(
                     corpus_tags, corpus_efs, corpus_tfs)):
-                # compare hypothesized tagging to gold standard
+                # generate hypothesized tagging and compare to gold tagging
                 self._update_transition_cache()
                 h_tags = self._feature_tag(sent_efs)
-                # score
                 for (h_tag, g_tag, token_efs, token_tfs) in zip(h_tags,
                             g_tags, sent_efs, sent_tfs):
                     if h_tag == g_tag:
@@ -269,9 +269,9 @@ class PPN(object):
             # make copy of bigram transition weights matrix
             tf_weights = copy(self.btf_weights)
             # add trigram transition weights to copy
-            for (idx, prev_idx) in enumerate(bckptrs[t - 1, ]):
-                col = tf_weights[:, idx]
-                trigram_tfs = trigram_tf(self.idx2tag[bckptrs[t - 2, idx]],
+            for (i, prev_idx) in enumerate(bckptrs[t - 1, ]):
+                col = tf_weights[:, i]
+                trigram_tfs = trigram_tf(self.idx2tag[bckptrs[t - 2, i]],
                                          self.idx2bigram_tfs[prev_idx])
                 for (tag, weight) in self.weights[trigram_tfs].iteritems():
                     col[self.tag2idx[tag]] += weight.get(self.time)
