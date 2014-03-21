@@ -86,11 +86,7 @@ class PPN(object):
     Perceptronix Point Never: an HMM tagger with fast discriminative
     training using the perceptron algorithm
 
-    This implements the `nltk.tag.TaggerI` interface
-
-    If a client calls any of the initial-underscore (_x) methods, it 
-    becomes that client's responsibility to maintain the bigram transition
-    cache (using _update_cache())
+    This implements the `nltk.tag.TaggerI` interface.
     """
 
     def __repr__(self):
