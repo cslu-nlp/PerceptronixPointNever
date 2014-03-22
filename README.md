@@ -39,9 +39,10 @@ For anything else, UTSL.
 
 A few Python-based scripts have been added to assist in tagging: 
 
-* `confusion` creates a tagging confusion matrix in CSV format
 * `universal` converts Penn Treebank tags to the Petrov et al. (2012) universal tagset; their results suggest that you may still want to train with a full tagset, and then convert to the universal tagset for downstream applications (or evaluation)
+* `confusion` creates a tagging confusion matrix in CSV format
 * `untag` removes tags from data for performing experiments
+* `tree2pos` converts PTB-style trees to token/tag format (ignoring non-(pre)terminals)
 
 Requirements
 ------------
