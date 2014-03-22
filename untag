@@ -4,21 +4,7 @@
 
 import fileinput
 
-
-def str2tuple(string):
-    """
-    Convert 'token/tag' string to (token, tag) tuple
-    """
-    i = string.rfind('/')
-    return (string[:i], string[i + 1:])
-
-
-def untag(sentence):
-    """
-    Given a list of tuples representing (token, tag) pairs, return only
-    the token side
-    """
-    return [w for (w, _) in sentence]
+from nltk import str2tuple, untag
 
 
 if __name__ == '__main__':
