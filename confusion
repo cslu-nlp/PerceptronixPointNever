@@ -6,18 +6,13 @@ from csv import DictWriter
 from sys import argv, stdout
 from collections import defaultdict
 
+from nltk import str2tuple
+
+
 USAGE = """USAGE: {} [HYPOTHESES] [GOLD] > [SINK]
 Hypothesized tags are rows, gold tags are columns.""".format(__file__)
 
 
-def str2tuple(string):
-    """
-    Convert 'token/tag' string to (token, tag) tuple
-    """
-    i = string.rfind('/')
-    return (string[:i], string[i + 1:])
-
- 
 if __name__ == '__main__':
     # check arguments
     if len(argv) != 3:

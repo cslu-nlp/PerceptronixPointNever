@@ -1,5 +1,5 @@
 Perceptronix Point Never
-========================
+=======================
 
 This is an implementation of an HMM part-of-speech tagger using the 
 averaged perceptron algorithm, as described in Collins 2002. As in Collins'
@@ -35,7 +35,7 @@ Usage
 Options `-i` and `-E` take whitespace-delimited "token/tag" pairs as input.
 Option `-T` takes whitespace-delimited tokens (no tags) as input.
 
-For anything else, UTSL...
+For anything else, UTSL.
 
 A few Python-based scripts have been added to assist in tagging: 
 

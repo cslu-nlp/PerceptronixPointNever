@@ -5,6 +5,8 @@
 
 import fileinput
 
+from nltk import str2tuple, tuple2str
+
 PTB2U = {'!': '.', '#': '.', '$': '.', "''": '.', '(': '.', ')': '.', 
          ',': '.', '-LRB-': '.', '-RRB-': '.', '.': '.', ':': '.', 
          '?': '.', 'CC': 'CONJ', 'CD': 'NUM', 'CD|RB': 'X', 'DT': 'DET', 
@@ -26,22 +28,6 @@ PTB2U = {'!': '.', '#': '.', '$': '.', "''": '.', '(': '.', ')': '.',
          # FIXME rules for CHILDES...
          'AUX': 'VERB', 'COP': 'VERB', 'NOT': 'ADV', 'COMP': 'ADP'}
         
-         
-    
-def str2tuple(string):
-    """
-    Convert 'token/tag' string to (token, tag) tuple
-    """
-    i = string.rfind('/')
-    return (string[:i], string[i + 1:])
-
-
-def tuple2str(wt_tuple):
-    """
-    Convert (str, str) representing token/tag pair to string
-    """
-    return '{}/{}'.format(*wt_tuple)
-
  
 if __name__ == '__main__':
     for line in fileinput.input():
