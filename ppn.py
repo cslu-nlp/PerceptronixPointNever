@@ -69,7 +69,7 @@ USAGE = """Perceptronix Point Never {0}, by Kyle Gorman and Steven Bedrick
     
     Optional arguments:
 
-        -t t           number of training iterations (-i only) [{2}]
+        -t iters       number of training iterations (-i only) [{2}]
         -h             print this message and quit
         -v             increase verbosity
 
@@ -98,11 +98,6 @@ class PPN(object):
         provided, perform `T` epochs of training
         """
         self.time = 0
-        # structure of the weights:
-        #
-        # * outer keys are feature strings
-        # * inter keys are tag strings
-        # * values are LazyWeights
         self.weights = defaultdict(lambda: defaultdict(LazyWeight))
         self.tagset = set()
         logging.info('Constructed new PPN instance.')
@@ -118,6 +113,9 @@ class PPN(object):
         update caches
         """
         retval = jsonpickle.decode(source.read(), keys=True)
+        # for some reason self.weights.default_factory does not persist
+        retval.weights.default_factory = lambda: defaultdict(LazyWeight)
+        # update caches
         retval._update_tagset_cache()
         retval._update_transition_cache()
         return retval
@@ -194,8 +192,9 @@ class PPN(object):
                 self.time += 1
             # compute accuracy
             accuracy = 1. - (epoch_wrong / epoch_size)
-            logging.info('Epoch {:02} acc.: {:.04f}'.format(t, accuracy) +
-                         ' ({}s elapsed).'.format(int(time() - tic)))
+            logging.info('Epoch {:02} '.format(t) +
+                         'accuracy: {:.04f} '.format(accuracy) + 
+                         '({}s elapsed)'.format(int(time() - tic)))
         self._update_transition_cache()
         logging.info('Training complete.')
 
@@ -248,7 +247,7 @@ class PPN(object):
         if L == 0:
             return []
         # initialize matrix of backpointers
-        bckptrs = zeros((L, len(self.idx2tag)), dtype=uint16)
+        bckptrs = zeros((L, self.Lt), dtype=uint16)
         # special case for first state: no weights from previous states,
         # and no need for transition weights because the "start" features
         # are present in the `w-1` and `w-2` emission features, so
@@ -271,12 +270,11 @@ class PPN(object):
             tf_weights = self.btf_weights.copy()
             # add trigram transition weights to copy
             for (i, prev_idx) in enumerate(bckptrs[t - 1, ]):
-                #col = tf_weights[:, i]
+                # get pointer to the present row in the transition matrix
                 row = tf_weights[i, :]
                 trigram_tfs = trigram_tf(self.idx2tag[bckptrs[t - 2, i]],
                                          self.idx2bigram_tfs[prev_idx])
                 for (tag, weight) in self.weights[trigram_tfs].iteritems():
-                    #col[self.tag2idx[tag]] += weight.get(self.time)
                     row[self.tag2idx[tag]] += weight.get(self.time)
             # add in transition weights and compute max
             (bckptrs[t, ], t_weights) = PPN.argmaxmax(s_weights +
@@ -303,14 +301,20 @@ class PPN(object):
         """
         Tag a list(list(str)) of `sentences`
         """
+        logging.info('Starting batch tagging.')
+        tic = time()
         for tokens in sentences:
-            return zip(tokens, self._feature_tag(extract_sent_efs(tokens)))
+            yield self.tag(tokens)
+        logging.info('Batch tagging complete ({}s elapsed).'.format(
+                                             int(time() - tic)))
 
     def evaluate(self, sentences):
         """
         Compute tag accuracy of the current model using a held-out list of
         `sentence`s (list of token/tag pairs)
         """
+        logging.info('Starting evaluation.')
+        tic = time()
         total = correct = 0
         for sentence in sentences:
             (tokens, gtags) = zip(*sentence)
@@ -318,7 +322,10 @@ class PPN(object):
             for (htag, gtag) in zip(htags, gtags):
                 total += 1
                 correct += (htag == gtag)
-        return correct / total
+        accuracy = correct / total
+        logging.info('Evaluation accuracy: {:.04f} '.format(accuracy) + 
+                     '({}s elapsed).'.format(int(time() - tic)))
+        return accuracy
 
     def evaluate_sentence(self, sentences):
         """
@@ -326,13 +333,19 @@ class PPN(object):
         model using a held-out list of `sentence`s (lists of token/tag
         pairs)
         """
+        logging.info('Starting evaluation.')
+        tic = time()
         total = correct = 0
         for sentence in sentences:
             (tokens, gtags) = zip(*sentence)
             htags = [tag for (_, tag) in self.tag(tokens)]
             total += 1
             correct += (htags == gtags)
-        return correct / total
+        accuracy = correct / total
+        logging.info('Sentence-based evaluation accuracy: ' +
+                     '{:.04f} '.format(accuracy) +
+                     '({}s elapsed).'.format(int(time() - tic)))
+        return accuracy
 
 
 if __name__ == '__main__':
@@ -375,11 +388,8 @@ if __name__ == '__main__':
     for arg in args:
         logging.warning('Ignoring command-line argument "{}"'.format(arg))
     # set defaults
-    test_source = None
-    tagged_source = None
-    untagged_source = None
-    model_source = None
-    model_sink = None
+    tagged_source = model_source = None                # inputs
+    test_source = untagged_source = model_sink = None  # output
     training_iterations = TRAINING_ITERATIONS
     # read optlist
     for (opt, arg) in optlist:
@@ -396,9 +406,11 @@ if __name__ == '__main__':
         elif opt == '-t':
             try:
                 training_iterations = int(arg)
-            except ValueError:
-                logging.error('Cannot parse -t arg "{}".'.format(arg))
-                exit(USAGE)
+                if training_iterations < 1:
+                    raise ValueError('-t arg must be > 0')
+            except ValueError as err:
+                logging.error(err)
+                exit(1)
         elif opt == '-h':
             exit(USAGE)
         elif opt == '-v':
@@ -418,16 +430,16 @@ if __name__ == '__main__':
         if model_source:
             logging.error('Incompatible inputs (-i and -p) specified.')
             exit(1)
-        logging.info('Training model from tagged data "{}".'.format(
-            tagged_source))
+        logging.info('Training model with "{}".'.format(
+                                                        tagged_source))
         try:
             ppn = PPN(tag_reader(tagged_source), training_iterations)
         except IOError as err:
             logging.error(err)
             exit(1)
     elif model_source:
-        logging.info('Reading model from serialized data "{}".'.format(
-            model_source))
+        logging.info('Reading serialized model from "{}".'.format(
+                                                           model_source))
         try:
             with GzipFile(model_source, 'r') as source:
                 ppn = PPN.load(source)
@@ -439,28 +451,20 @@ if __name__ == '__main__':
         exit(USAGE)
 
     # run outputs
-    if test_source:
-        logging.info('Evaluating on data from "{}".'.format(test_source))
-        try:
+    try:
+        if test_source:
+            logging.info('Evaluating data with "{}".'.format(test_source))
             with open(test_source, 'r') as source:
                 print 'Accuracy: {:.04f}'.format(ppn.evaluate(
                                                  tag_reader(test_source)))
-        except IOError as err:
-            logging.error(err)
-            exit(1)
-    if untagged_source:
-        logging.info('Tagging data from "{}".'.format(untagged_source))
-        try:
-            for tokens in untagged_reader(untagged_source):
-                print ' '.join(tuple2str(wt) for wt in ppn.tag(tokens))
-        except IOError as err:
-            logging.error(err)
-            exit(1)
-    if model_sink:
-        logging.info('Writing serialized data to "{}".'.format(model_sink))
-        try:
+        if untagged_source:
+            logging.info('Tagging "{}".'.format(untagged_source))
+            for sent in ppn.batch_tag(untagged_reader(untagged_source)):
+                print ' '.join(tuple2str(wt) for wt in sent)
+        if model_sink:
+            logging.info('Serializing model to "{}".'.format(model_sink))
             with GzipFile(model_sink, 'w') as sink:
                 ppn.dump(sink)
-        except IOError as err:
-            logging.error(err)
-            exit(1)
+    except IOError as err:
+        logging.error(err)
+        exit(1)

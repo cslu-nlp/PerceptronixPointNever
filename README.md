@@ -28,7 +28,7 @@ Usage
     
     Optional arguments:
 
-        -t t           number of training iterations (default: 10)
+        -t iters       number of training iterations (default: 10)
         -h             print this message and quit
         -v             increase verbosity
 
