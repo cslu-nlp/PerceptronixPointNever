@@ -79,9 +79,7 @@ class LazyWeight(object):
 
     def _freshen(self, time):
         """
-        This function applies queued updates and freshens the timestamp,
-        and, should be called any time the value of a weight is used or
-        modified
+        Apply queued updates and freshen the timestamp
         """
         if time == self.timestamp:
             return

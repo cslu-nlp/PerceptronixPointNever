@@ -3,10 +3,12 @@ Perceptronix Point Never
 
 This is an implementation of an HMM part-of-speech tagger using the 
 averaged perceptron algorithm, as described in Collins 2002. As in Collins'
-paper, the features used are the same as those used by Ratnaparkhi (1996), except that the same features (including orthographic features) are used 
-for both "rare" and "non-rare" words.
+paper, the features used are the same as those used by Ratnaparkhi (1996) 
+in a maximum-entropy tagger, except that the same feature set (which 
+includes a full set of "orthographic" features) is used for both "rare" 
+and "non-rare" words.
 
-IOB NP-chunking support may be added at a later date.
+IOB NP-chunking support will be added at a later date.
 
 Usage
 -----
@@ -38,7 +40,7 @@ For anything else, UTSL...
 A few Python-based scripts have been added to assist in tagging: 
 
 * `confusion` creates a tagging confusion matrix in CSV format
-* `universal` converts Penn Treebank tags to the Petrov et al. (2012) universal tagset; their results suggest that you may still want to train with a large tagset, and then convert to the universal tagset downstream
+* `universal` converts Penn Treebank tags to the Petrov et al. (2012) universal tagset; their results suggest that you may still want to train with a full tagset, and then convert to the universal tagset for downstream applications (or evaluation)
 * `untag` removes tags from data for performing experiments
 
 Requirements
@@ -46,8 +48,8 @@ Requirements
 
 Two 3rd-party Python modules are required:
 
-* `numpy`
-* `jsonpickle`
+* `numpy` for numeric arrays
+* `jsonpickle` for model (de)serialization
 
 License
 -------

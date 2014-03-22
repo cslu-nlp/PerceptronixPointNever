@@ -22,10 +22,11 @@
 # TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 # SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #
-# Perceptronix Point Never: a perceptron-based part-of-speech tagger
+# Perceptronix Point Never: an HMM part-of-speech tagger using the 
+# averaged perceptron algorithm
 #
 # TODO:
-#   * add IOB chunking support
+#   * add chunking support and chunking features
 
 from __future__ import division
 
@@ -40,18 +41,17 @@ from numpy.random import permutation
 # `permutation` is much faster than `random.shuffle`; if for some reason
 # you are unable to use `numpy`, it should not be at all difficult to
 # modify the code to use `random` instead.
-from numpy import arange, copy, uint16, unravel_index, zeros
+from numpy import arange, uint16, unravel_index, zeros
 
 from lazyweight import LazyWeight
 from decorators import Listify, Zipstarify
-from features import bigram_tf, trigram_tf, extract_sent_efs, \
-    extract_sent_tfs
+from features import extract_sent_efs, extract_sent_tfs, bigram_tf, \
+                                                         trigram_tf
 
-## defaults and (pseudo)-globals
+## defaults and globals
 VERSION_NUMBER = 0.7
 TRAINING_ITERATIONS = 10
 
-# usage string
 USAGE = """Perceptronix Point Never {0}, by Kyle Gorman and Steven Bedrick
 
     {1} [-i|-p input] [-D|-E|-T output] [-t {2}] [-h] [-v]
@@ -77,7 +77,7 @@ Options `-i` and `-E` take whitespace-delimited "token/tag" pairs as input.
 Option `-T` takes whitespace-delimited tokens (no tags) as input.
 """.format(VERSION_NUMBER, __file__, TRAINING_ITERATIONS)
 
-# helpers
+## helpers
 
 
 class PPN(object):
@@ -114,7 +114,8 @@ class PPN(object):
     @classmethod
     def load(cls, source):
         """
-        Create new PPN instance from serialized JSON from `source`
+        Create new PPN instance from serialized JSON from `source` and 
+        update caches
         """
         retval = jsonpickle.decode(source.read(), keys=True)
         retval._update_tagset_cache()
@@ -148,7 +149,7 @@ class PPN(object):
             for tags in corpus_tags:
                 self.tagset.update(tags)
         self.Lt = len(self.tagset)
-        # mapp between tag, index, and string
+        # map between tag, matrix index, and bigram feature string
         self.idx2tag = {i: tag for (i, tag) in enumerate(self.tagset)}
         self.tag2idx = {tag: i for (i, tag) in self.idx2tag.iteritems()}
         self.idx2bigram_tfs = {i: bigram_tf(prev_tag) for (i, prev_tag)
@@ -267,14 +268,16 @@ class PPN(object):
         s_weights = t_weights + self._e_weights(sent_efs[t])
         for (t, token_efs) in enumerate(sent_efs[2:], 2):
             # make copy of bigram transition weights matrix
-            tf_weights = copy(self.btf_weights)
+            tf_weights = self.btf_weights.copy()
             # add trigram transition weights to copy
             for (i, prev_idx) in enumerate(bckptrs[t - 1, ]):
-                col = tf_weights[:, i]
+                #col = tf_weights[:, i]
+                row = tf_weights[i, :]
                 trigram_tfs = trigram_tf(self.idx2tag[bckptrs[t - 2, i]],
                                          self.idx2bigram_tfs[prev_idx])
                 for (tag, weight) in self.weights[trigram_tfs].iteritems():
-                    col[self.tag2idx[tag]] += weight.get(self.time)
+                    #col[self.tag2idx[tag]] += weight.get(self.time)
+                    row[self.tag2idx[tag]] += weight.get(self.time)
             # add in transition weights and compute max
             (bckptrs[t, ], t_weights) = PPN.argmaxmax(s_weights +
                                                       tf_weights, axis=1)
@@ -308,8 +311,7 @@ class PPN(object):
         Compute tag accuracy of the current model using a held-out list of
         `sentence`s (list of token/tag pairs)
         """
-        total = 0
-        correct = 0
+        total = correct = 0
         for sentence in sentences:
             (tokens, gtags) = zip(*sentence)
             htags = [tag for (_, tag) in self.tag(tokens)]
@@ -324,8 +326,7 @@ class PPN(object):
         model using a held-out list of `sentence`s (lists of token/tag
         pairs)
         """
-        total = 0
-        correct = 0
+        total = correct = 0
         for sentence in sentences:
             (tokens, gtags) = zip(*sentence)
             htags = [tag for (_, tag) in self.tag(tokens)]
