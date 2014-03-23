@@ -2,6 +2,8 @@
 # convert PTB-style trees to token/tag strings, assuming one tree per line
 # Kyle Gorman <gormanky@ohsu.edu>
 
+from __future__ import division
+
 import fileinput
 
 from nltk import tuple2str, Tree 

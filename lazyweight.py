@@ -70,8 +70,7 @@ class LazyWeight(object):
     """
 
     def __init__(self, weight=0, time=0):
-        self.weight = weight
-        self.summed_weight = self.weight
+        self.weight = self.summed_weight = weight
         self.timestamp = time
 
     def __repr__(self):

@@ -2,6 +2,8 @@
 # untag: remove tags from tagged data files
 # Kyle Gorman <gormanky@ohsu.edu>
 
+from __future__ import division
+
 import fileinput
 
 from nltk import str2tuple, untag

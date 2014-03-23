@@ -2,6 +2,8 @@
 # confusion: compute POS tag confusion matrix
 # Kyle Gorman <gormanky@ohsu.edu>
 
+from __future__ import division
+
 from csv import DictWriter
 from sys import argv, stdout
 from collections import defaultdict

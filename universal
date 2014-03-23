@@ -3,6 +3,8 @@
 # This will be added to NLTK at some point, but it's not yet.
 # Kyle Gorman <gormanky@ohsu.edu>
 
+from __future__ import division
+
 import fileinput
 
 from nltk import str2tuple, tuple2str
