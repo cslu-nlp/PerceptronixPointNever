@@ -22,11 +22,8 @@
 # TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 # SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #
-# Perceptronix Point Never: an HMM part-of-speech tagger using the 
+# Perceptronix Point Never: an HMM sequence tagger trained using the
 # averaged perceptron algorithm
-#
-# TODO:
-#   * add chunking support and chunking features
 
 from __future__ import division
 
@@ -34,84 +31,163 @@ import logging
 import jsonpickle
 
 from time import time
+from string import digits
+from gzip import GzipFile
 from collections import defaultdict
 
-from numpy.random import permutation
-# timeit tests suggest that for randomizing order of presentation,
-# `permutation` is much faster than `random.shuffle`; if for some reason
-# you are unable to use `numpy`, it should not be at all difficult to
-# modify the code to use `random` instead.
+from numpy.random import permutation  # faster than `random.shuffle`
 from numpy import arange, uint16, unravel_index, zeros
 
-from lazyweight import LazyWeight
-from features import TaggerFeatureExtractor
+from nltk.chunk.util import conlltags2tree
+from nltk import str2tuple, tuple2str, TaggerI, ChunkParserI, ChunkScore
 
 ## defaults and globals
-VERSION_NUMBER = 0.7
+VERSION_NUMBER = 0.8
 TRAINING_ITERATIONS = 10
 
 USAGE = """Perceptronix Point Never {0}, by Kyle Gorman and Steven Bedrick
 
-    {1} [-i|-p input] [-D|-E|-T output] [-t {2}] [-h] [-v]
+    USAGE: {1} [-i|-p] file [-I|-P|-E] file [-T {2}] [-c] [-h] [-v]
 
-    Input arguments (exactly one required):
+    Input arguments (at least one required):
 
-        -i tag         train model on data in `tagged`
-        -p source      read serialized model from `source`
+        -i file        train on labeled data
+        -p file        read in serialized model
 
     Output arguments (at least one required):
 
-        -D sink        dump serialized training model to `sink`
-        -E tagged      compute accuracy on data in `tagged`
-        -T untagged    tag data in `untagged`
+        -I file        tag or chunk unlabeled data `unlabeled
+        -E file        evaluate on labeled data
+        -P file        write out serialized model
     
     Optional arguments:
 
-        -t iters       number of training iterations (-i only) [{2}]
+        -T iters       number of training iterations       [default: {2}]
+        -c             run as chunker, not as a tagger     [default: {3}]
+
         -h             print this message and quit
         -v             increase verbosity
 
-Options `-i` and `-E` take whitespace-delimited "token/tag" pairs as input.
-Option `-T` takes whitespace-delimited tokens (no tags) as input.
-""".format(VERSION_NUMBER, __file__, TRAINING_ITERATIONS)
+    All inputs should be whitespace-delimited with one sentence per line.
 
-## helpers
+    Tagger training/evaluation: "token/POS-tag"
+    Tagging: bare tokens (no POS tags)
+
+    Chunker training/evaluation: "token/POS-tag/chunk-tag"
+    Chunking: "token/POS-tag" tokens (no chunk tags)
+""".format(VERSION_NUMBER, __file__, TRAINING_ITERATIONS, 'no')
+
+# lazy weight class
+
+
+class LazyWeight(object):
+
+    """
+    This class represents an individual weight in an averaged perceptron
+    as a signed integer. It allows for several subtle optimizations.
+    First, as the name suggests, the `summed_weight` variable is lazily
+    evaluated (i.e., computed only when needed). This summed weight is the
+    one used in actual inference: we need not average explicitly. Lazy
+    evaluation requires us to store two other numbers. First, we store the
+    "real" weight (i.e., if this wasn't part of an averaged perceptron).
+    Secondly, we store the last time this weight was updated. These two
+    additional numbers work together as follows. When we need the real
+    value of the summed weight (for inference), we "freshen" the summed
+    weight by adding to it the product of the real weight and the time
+    elapsed.
+
+    While passing around the "timer" of the outer class is suboptimal, one
+    advantage of this format is that we can store weights and their times
+    in the same place, reducing the number of redundant hashtable lookups
+    required.
+
+    # initialize
+    >>> t = 0
+    >>> lw = LazyWeight(1, t)
+    >>> lw.get(t)
+    1
+
+    # some time passes...
+    >>> t += 1
+    >>> lw.get(t)
+    2
+
+    # weight is now changed
+    >>> lw.update(-1, t)
+    >>> t += 3
+    >>> lw.update(-1, t)
+    >>> t += 3
+    >>> lw.get(t)
+    -1
+    """
+
+    def __init__(self, weight=0, time=0):
+        self.weight = self.summed_weight = weight
+        self.timestamp = time
+
+    def __repr__(self):
+        return '{}({})'.format(self.__class__.__name__, self.__dict__)
+
+    def _freshen(self, time):
+        """
+        Apply queued updates and freshen the timestamp
+        """
+        if time == self.timestamp:
+            return
+        self.summed_weight += (time - self.timestamp) * self.weight
+        self.timestamp = time
+
+    def get(self, time):
+        """
+        Return an up-to-date sum of weights
+        """
+        self._freshen(time)
+        return self.summed_weight
+
+    def update(self, value, time):
+        """
+        Bring sum of weights up to date, then add `value` to the weight
+        """
+        self._freshen(time)
+        self.weight += value
+
+# averaged perceptron sequence tagger class
 
 
 class PPN(object):
 
     """
-    Perceptronix Point Never: an HMM tagger with fast discriminative
-    training using the perceptron algorithm
+    Perceptronix Point Never: an HMM sequence tagger with discriminative
+    training via the averaged perceptron algorithm
 
-    This implements the `nltk.tag.TaggerI` interface.
+    This lacks emission feature extractors. By mixing them in, and adding
+    evaluation methods, you can create a POS tagger or a phrase chunker.
     """
 
     def __repr__(self):
         return '{}(time = {})'.format(self.__class__.__name__, self.time)
 
-    def __init__(self, extractor, sentences=None, T=1):
+    def __init__(self, sentences=None, N=1):
         """
-        Initialize the model, if a list(list(str, str)) of `sentences` is
+        Initialize the model; if a list(list(str, str)) of `sentences` is
         provided, perform `T` epochs of training
         """
         self.time = 0
         self.tagset = set()
-        self.extractor = extractor
         self.weights = defaultdict(lambda: defaultdict(LazyWeight))
         logging.info('Constructed new PPN instance.')
         if sentences:
-            self.train(sentences, T)
+            self.train(sentences, N)
 
     # alternative constructor using serialized JSON
 
     @classmethod
-    def load(cls, source):
+    def load(cls, filename):
         """
-        Create new PPN instance from serialized JSON from `source` and 
-        update caches
+        Deserialize from compressed JSON in `source`, and update all caches
         """
-        retval = jsonpickle.decode(source.read(), keys=True)
+        with GzipFile(filename, 'r') as source:
+            retval = jsonpickle.decode(source.read(), keys=True)
         # for some reason self.weights.default_factory does not persist
         retval.weights.default_factory = lambda: defaultdict(LazyWeight)
         # update caches
@@ -119,15 +195,81 @@ class PPN(object):
         retval._update_transition_cache()
         return retval
 
-    def dump(self, sink):
+    def dump(self, filename):
         """
-        Serialize object (as JSON) and write to `sink`
+        Serialize to compressed JSON in `sink`
         """
-        print >> sink, jsonpickle.encode(self, keys=True)
+        with GzipFile(filename, 'w') as sink:
+            print >> sink, jsonpickle.encode(self, keys=True)
+
+    # transition feature extractors
+
+    def _extract_sent_tfs(self, tags):
+        """
+        Extract bigram and trigram transition features for a list of tags
+        representing a single sentence. There is one list of transition
+        feature strings per tag.
+
+        :type tags: list(str)
+        :param tags: List of part-of-speech tags.
+        :rtype: list(list(str))
+        """
+        # for the first two tokens, there are no tag features; these would
+        # recapitulate information in the word features (e.g., w-1) anyways
+        for i in xrange(2):
+            yield []
+        # general case
+        for i in xrange(len(tags) - 2):
+            yield self._extract_token_tfs(tags[i], tags[i + 1])
+
+    def _extract_token_tfs(self, prev_prev_tag, prev_tag):
+        """
+        Extract bigram and trigram tranisition features for a single tag.
+        Both arguments are strings.
+
+        :type prev_prev_tag: str
+        :param prev_prev_tag: the tag two tags back
+        :type prev_tag: str
+        :param prev_tag: the previous tag
+        :rtype: list(str)
+        """
+        bigram_tf_string = self._bigram_tf(prev_tag)
+        trigram_tf_string = self._trigram_tf(prev_prev_tag,
+                                             bigram_tf_string)
+        return [bigram_tf_string, trigram_tf_string]
+
+    def _bigram_tf(self, prev_tag):
+        """
+        Create bigram transition feature string
+
+        :type prev_tag: str
+        :param prev_tag: the previous tag
+        :rtype: str
+        """
+        return "t-1='{}'".format(prev_tag)
+
+    def _trigram_tf(self, prev_prev_tag, bigram_feature_string):
+        """
+        Create trigram transition feature string
+
+        :type prev_prev_tag: str
+        :param prev_prev_tag: the tag two tags back
+        :type bigram_feature_string: str
+        :param bigram_feature_string: a bigram feature string for the
+                                      previous tag, created with bigram_tf
+        """
+        return "t-2='{}',{}".format(prev_prev_tag, bigram_feature_string)
+
+    # emission feature class constants
+
+    LPAD = ["<S1>", "<S0>"]
+    RPAD = ["</S0>", "</S1>"]
+
+    # ordinary instance methods (and helpers)
 
     def tic(self):
         """
-        Increment the (notional) clock and update transition cache
+        Increment the (notional) clock, and update transition cache.
         """
         self.time += 1
         self._update_transition_cache()
@@ -135,17 +277,17 @@ class PPN(object):
     def _update_tagset_cache(self, corpus_tags=None):
         """
         Update the cache of tagset information (and also the transition
-        cache, which uses the relevant indices)
+        cache, which uses the relevant indices).
         """
         # map between tag, matrix index, and bigram feature string
         self.idx2tag = {i: tag for (i, tag) in enumerate(self.tagset)}
         self.tag2idx = {tag: i for (i, tag) in self.idx2tag.iteritems()}
-        self.idx2bigram_tfs = {i: self.extractor.bigram_tf(prev_tag) for \
+        self.idx2bigram_tfs = {i: self._bigram_tf(prev_tag) for
                                (i, prev_tag) in self.idx2tag.iteritems()}
 
     def _update_transition_cache(self):
         """
-        Update the cache of bigram transition weights
+        Update the cache of bigram transition weights.
         """
         self.Lt = len(self.tagset)
         self.btf_weights = zeros((self.Lt, self.Lt), dtype=int)
@@ -155,41 +297,38 @@ class PPN(object):
             for (tag, weight) in self.weights[bigram_tfs].iteritems():
                 col[self.tag2idx[tag]] += weight.get(self.time)
 
-    def corpus_fs(self, sentences):
-        """
-        Extract all features used in training, returning a (tag list,
-        token feature list, and tag feature list) tuple for each sentence;
-        """
+    def _extract_corpus_features(self, sentences):
         for sentence in sentences:
-            (tokens, tags) = zip(*sentence)
-            yield (tags, self.extractor.extract_sent_efs(tokens), 
-                         self.extractor.extract_sent_tfs(tags))
-            self.tagset.update(tags)
+            (emissions, hidden_states) = zip(*sentence)
+            yield (hidden_states,
+                   list(self._extract_sent_efs(emissions)),
+                   list(self._extract_sent_tfs(hidden_states)))
+            self.tagset.update(hidden_states)
 
     def _update(self, token_fs, g_tag, h_tag):
         """
         Update weights, rewarding the correct tag `g_tag` and penalizing
-        the incorrect tag `h_tag`
+        the incorrect tag `h_tag`.
         """
         for feat in token_fs:
             featptr = self.weights[feat]
             featptr[g_tag].update(+1, self.time)
             featptr[h_tag].update(-1, self.time)
 
-    def train(self, sentences, T=1):
+    def train(self, sentences, N=1):
         """
         Perform `T` epochs of training using data from `sentences`, a
-        list(list(str, str)), as generated by `__main__.tag_reader`
+        list(list(str, str)), as generated by `__main__.tag_reader`.
         """
         logging.info('Extracting input features for training.')
-        (corpus_tags, corpus_efs, corpus_tfs) = zip(*tuple(self.corpus_fs(
-                                                           sentences)))
+        (corpus_tags, corpus_efs, corpus_tfs) = zip(
+            *self._extract_corpus_features(sentences))
         epoch_size = sum(len(sent_tags) for sent_tags in corpus_tags)
         self._update_tagset_cache()
         self._update_transition_cache()
         # begin training
-        logging.info('Beginning {} epochs of training...'.format(T))
-        for t in xrange(1, T + 1):
+        logging.info('Beginning {} epochs of training...'.format(N))
+        for n in xrange(1, N + 1):
             toc = time()
             epoch_wrong = 0
             for (g_tags, sent_efs, sent_tfs) in permutation(zip(
@@ -197,7 +336,7 @@ class PPN(object):
                 # generate hypothesized tagging and compare to gold tagging
                 h_tags = self._feature_tag(sent_efs)
                 for (h_tag, g_tag, token_efs, token_tfs) in zip(h_tags,
-                            g_tags, sent_efs, sent_tfs):
+                                              g_tags, sent_efs, sent_tfs):
                     if h_tag == g_tag:
                         continue
                     self._update(token_efs + token_tfs, g_tag, h_tag)
@@ -205,15 +344,15 @@ class PPN(object):
                 self.tic()
             # compute accuracy
             accuracy = 1. - (epoch_wrong / epoch_size)
-            logging.info('Epoch {:02} '.format(t) +
-                         'accuracy: {:.04f} '.format(accuracy) + 
-                         '({}s elapsed)'.format(int(time() - toc)))
+            logging.info('Epoch {:02} '.format(n) +
+                         'accuracy: {:.04f} '.format(accuracy) +
+                         '({}s elapsed).'.format(int(time() - toc)))
         logging.info('Training complete.')
 
     def _e_weights(self, token_efs):
         """
         Use a vector of token features (representing a single state) to
-        compute emission weights for a state with `token_efs` features
+        compute emission weights for a state with `token_efs` features.
         """
         e_weights = zeros(self.Lt, dtype=int)
         for feat in token_efs:
@@ -224,7 +363,7 @@ class PPN(object):
     @staticmethod
     def argmaxmax(my_array, axis=None):
         """
-        Compute both argmax (key) and max (value) of a dictionary
+        Compute both argmax (key) and max (value) over some axis.
         """
         retval_argmax = my_array.argmax(axis=axis)
         if axis is None:
@@ -239,13 +378,12 @@ class PPN(object):
         Tag a sentence from a list of sets of token features; note this
         returns a list of tags, not a list of (token, tag) tuples
         """
-        # nomenclature:
         # emission weights: weight for word-given-tag, not taking any
         # context into account
         # transition weights: weight for coming into a state at time `t`
         # state weights: weight for _being_ in a state at time `t`,
         # the sum of emission weights and trellis weights
-        L = len(sent_efs)  # len of sentence, in tokens
+        L = len(sent_efs)  # sentence length, in tokens
         if L == 0:
             return []
         # initialize matrix of backpointers
@@ -274,9 +412,9 @@ class PPN(object):
             for (i, prev_idx) in enumerate(bckptrs[t - 1, ]):
                 # get pointer to the present row in the transition matrix
                 row = tf_weights[i, :]
-                trigram_tfs = self.extractor.trigram_tf(
-                                   self.idx2tag[bckptrs[t - 2, i]],
-                                   self.idx2bigram_tfs[prev_idx])
+                trigram_tfs = self._trigram_tf(
+                    self.idx2tag[bckptrs[t - 2, i]],
+                    self.idx2bigram_tfs[prev_idx])
                 for (tag, weight) in self.weights[trigram_tfs].iteritems():
                     row[self.tag2idx[tag]] += weight.get(self.time)
             # add in transition weights and compute max
@@ -294,188 +432,284 @@ class PPN(object):
         tags.reverse()  # NB: works in place
         return tags
 
-    def tag(self, tokens):
-        """
-        Tag a single `sentence` list(str)
-        """
-        
-        return zip(tokens, self._feature_tag(
-                           self.extractor.extract_sent_efs(tokens)))
-
-    def batch_tag(self, sentences):
-        """
-        Tag a list(list(str)) of `sentences`
-        """
-        toc = time()
-        for tokens in sentences:
-            yield self.tag(tokens)
-        logging.info('Batch tagging complete ({}s elapsed).'.format(
-                                             int(time() - toc)))
-
-    def evaluate(self, sentences):
-        """
-        Compute tag accuracy of the current model using a held-out list of
-        `sentence`s (list of token/tag pairs)
-        """
-        logging.info('Starting evaluation.')
-        toc = time()
-        total = correct = 0
-        for sentence in sentences:
-            (tokens, gtags) = zip(*sentence)
-            htags = [tag for (_, tag) in self.tag(tokens)]
-            for (htag, gtag) in zip(htags, gtags):
-                total += 1
-                correct += (htag == gtag)
-        accuracy = correct / total
-        logging.info('Evaluation accuracy: {:.04f} '.format(accuracy) + 
-                     '({}s elapsed).'.format(int(time() - toc)))
-        return accuracy
-
-    def evaluate_sentence(self, sentences):
-        """
-        Compute _sentence_ accuracy (à la Manning 2011) of the current
-        model using a held-out list of `sentence`s (lists of token/tag
-        pairs)
-        """
-        logging.info('Starting evaluation.')
-        toc = time()
-        total = correct = 0
-        for sentence in sentences:
-            (tokens, gtags) = zip(*sentence)
-            htags = [tag for (_, tag) in self.tag(tokens)]
-            total += 1
-            correct += (htags == gtags)
-        accuracy = correct / total
-        logging.info('Sentence-based evaluation accuracy: ' +
-                     '{:.04f} '.format(accuracy) +
-                     '({}s elapsed).'.format(int(time() - toc)))
-        return accuracy
+    def tag(self, sentence):
+        return zip(sentence, self._feature_tag(
+            list(self._extract_sent_efs(sentence))))
 
 
-def PPNTagger(*args, **kwargs):
-    """
-    Return a PPN instance which uses POS tagging features, passing all 
-    other arguments through
-    """
-    return PPN(TaggerFeatureExtractor(), *args, **kwargs)
+class PPNTagger(PPN, TaggerI):
 
-if __name__ == '__main__':
+    def print_evaluation(self, filename):
+        gold = list(self.labeled_reader(filename))
+        print 'Accuracy: {:.04}'.format(self.evaluate(gold))
 
-    from gzip import GzipFile
-    from sys import argv, stderr
-    from nltk import str2tuple, tuple2str
-    from getopt import getopt, GetoptError
+    # corpus readers
 
-    # helpers
-
-    def tag_reader(filename):
-        """
-        Return a list(list(str, str))) in which the inner list contains
-        word/tag tuples representing a single sentence
-        """
-        with open(filename, 'r') as source:
-            for line in source:
-                yield [str2tuple(wt) for wt in line.strip().split()]
-
-    def untagged_reader(filename):
-        """
-        Return a list(list(str))) in which the inner list contains a list
-        of words (it is assumed there are no tags; if there are tags but
-        you wish to ignore them, use `untag`)
-        """
+    @staticmethod
+    def unlabeled_reader(filename):
         with open(filename, 'r') as source:
             for line in source:
                 yield line.strip().split()
 
+    @staticmethod
+    def labeled_reader(filename, sep='/'):
+        with open(filename, 'r') as source:
+            for line in source:
+                yield [str2tuple(wt, sep) for wt in line.strip().split()]
+
+    # labeler
+
+    def label(self, filename, sep='/'):
+        for tokens in self.unlabeled_reader(filename):
+            print ' '.join(tuple2str(wt, sep) for wt in self.tag(tokens))
+
+    # feature extraction
+
+    PRE_SUF_MAX = 4
+
+    def _extract_sent_efs(self, tokens):
+        """
+        Extract the Ratnaparkhi/Collins POS tagging emission features for
+        a list of tokens representing a single sentence. There is one list
+        of emission feature strings per token.
+
+        :type tokens: list(str)
+        :param tokens: List of part-of-speech tokens.
+        :rtype: list(list(str))
+        """
+        padded_tokens = self.LPAD + [t.lower() for t in tokens] + self.RPAD
+        for (i, ftoken) in enumerate(padded_tokens[2:-2]):
+            # even though `ftoken` is the current token, `i` is the index
+            # of two tokens back
+            featset = ['b']  # initialize with bias term
+            # tokens nearby
+            featset.append("w-2='{}'".format(padded_tokens[i]))
+            featset.append("w-1='{}'".format(padded_tokens[i + 1]))
+            featset.append("w='{}'".format(ftoken))
+            featset.append("w+1='{}'".format(padded_tokens[i + 3]))
+            featset.append("w+2='{}'".format(padded_tokens[i + 4]))
+            for j in xrange(1, 1 + min(len(ftoken), self.PRE_SUF_MAX)):
+                featset.append("p({})='{}'".format(j, ftoken[:+j]))  # pre
+                featset.append("s({})='{}'".format(j, ftoken[-j:]))  # suf
+            # contains a hyphen?
+            if any(c == '-' for c in ftoken):
+                featset.append('h')
+            # contains a number?
+            if any(c in digits for c in ftoken):
+                featset.append('n')
+            # contains an uppercase character?
+            if ftoken != tokens[i]:  # which has no case folding
+                featset.append('u')
+            yield featset
+
+
+class PPNChunker(PPN, ChunkParserI):
+
+    @staticmethod
+    def to_tree(sentence):
+        """
+        Convert tagged list into shallow parse tree
+        """
+        (tokens_pos_tags, chunk_tags) = zip(*sentence)
+        (tokens, pos_tags) = zip(*tokens_pos_tags)
+        return conlltags2tree(zip(tokens, pos_tags, chunk_tags))
+
+    def parse(self, sentence):
+        """
+        The sentence is tagged, flattened, then converted to shallow parse
+        """
+        return PPNChunker.to_tree(self.tag(sentence))
+
+    def print_evaluation(self, filename):
+        cnk_score = ChunkScore()
+        for sentence in self.labeled_reader(filename):
+            gold = PPNChunker.to_tree(sentence)
+            hypothesis = self.parse(gold.leaves())
+            cnk_score.score(gold, hypothesis)
+        print 'F-score: {:.04}'.format(cnk_score.f_measure())
+
+    # corpus readers
+
+    @staticmethod
+    def unlabeled_reader(filename, sep='/'):
+        with open(filename, 'r') as source:
+            for line in source:
+                yield [str2tuple(wp, sep) for wp in line.strip().split()]
+
+    @staticmethod
+    def labeled_reader(filename, sep='/'):
+        with open(filename, 'r') as source:
+            for line in source:
+                hlf = [str2tuple(wpc, sep) for wpc in line.strip().split()]
+                yield [(str2tuple(wp, sep), c) for (wp, c) in hlf]
+
+    # labeler
+
+    def label(self, filename, sep='/'):
+        for sentence in self.unlabeled_reader(filename):
+            print ' '.join('{0}{3}{1}{3}{2}'.format(w, p, c, sep) for
+                           ((w, p), c) in self.tag(sentence))
+
+    # feature extraction
+
+    def _extract_sent_efs(self, tokens_pos_tags):
+        """
+        Extract the Ratnaparkhi/Collins chunking emission features for
+        a list of tokens/tags representing a single sentence. There is
+        one list of emission feature strings per token/tag.
+
+        :type tokens: ?.
+        :param tokens: ?.
+        :rtype: list(list(str))
+        """
+        (tokens, pos_tags) = zip(*tokens_pos_tags)
+        padded_tokens = self.LPAD + [t.lower() for t in tokens] + self.RPAD
+        padded_tags = self.LPAD + list(pos_tags) + self.RPAD
+        for i in xrange(len(tokens)):
+            # NB: the "target" is i + 2
+            # bias term
+            featset = ['b']
+            # token unigrams
+            featset.append("w-2='{}'".format(padded_tokens[i]))
+            featset.append("w-1='{}'".format(padded_tokens[i + 1]))
+            featset.append("w='{}'".format(padded_tokens[i + 2]))
+            featset.append("w+1='{}'".format(padded_tokens[i + 3]))
+            featset.append("w+2='{}'".format(padded_tokens[i + 4]))
+            # token bigrams
+            featset.append("w-2='{}',w-1='{}'".format(
+                           *padded_tokens[i:i + 2]))
+            featset.append("w-1='{}',w='{}'".format(
+                           *padded_tokens[i + 1:i + 3]))
+            featset.append("w='{}',w+1='{}'".format(
+                           *padded_tokens[i + 2:i + 4]))
+            featset.append("w+1='{}',w+2='{}'".format(
+                           *padded_tokens[i + 3:i + 5]))
+            # POS tag unigrams
+            featset.append("t-2='{}'".format(padded_tags[i]))
+            featset.append("t-2='{}'".format(padded_tags[i + 1]))
+            featset.append("t='{}'".format(padded_tags[i + 2]))
+            featset.append("t+1='{}'".format(padded_tags[i + 3]))
+            featset.append("t+2='{}'".format(padded_tags[i + 4]))
+            # POS tag bigrams
+            featset.append("t-2='{}',t-1='{}'".format(
+                           *padded_tags[i:i + 2]))
+            featset.append("t-1='{}',t='{}'".format(
+                           *padded_tags[i + 1:i + 3]))
+            featset.append("t='{}',t+1='{}'".format(
+                           *padded_tags[i + 2:i + 4]))
+            featset.append("t+1='{}',t+2='{}'".format(
+                           *padded_tags[i + 3:i + 5]))
+            # POS tag trigrams
+            featset.append("t-2='{}',t-1='{}',t='{}'".format(
+                           *padded_tags[i:i + 3]))
+            featset.append("t-1='{}',t='{}',t+1='{}'".format(
+                           *padded_tags[i + 1:i + 4]))
+            featset.append("t='{}',t+1='{}',t+2='{}'".format(
+                           *padded_tags[i + 2:i + 5]))
+            yield featset
+
+
+if __name__ == '__main__':
+
+    from sys import argv, stderr
+    from getopt import getopt, GetoptError
+
+    def print_usage():
+        print >> stderr, USAGE
+
     # parse arguments
     try:
-        (optlist, args) = getopt(argv[1:], 'i:p:D:E:T:t:hv')
+        (optlist, args) = getopt(argv[1:], 'i:p:I:P:E:T:chv')
     except GetoptError as err:
+        print_usage()
         logging.error(err)
-        exit(USAGE)
-    # warn users about arguments not from opts (as this is unsupported)
+        exit(1)
+    # warn users about arguments without flags (as this is unsupported)
     for arg in args:
         logging.warning('Ignoring command-line argument "{}"'.format(arg))
     # set defaults
-    tagged_source = model_source = None                # inputs
-    test_source = untagged_source = model_sink = None  # output
+    tagger_mode = True
+    train = deserialize = None              # input options
+    label = serialize = evaluate = None     # output options
     training_iterations = TRAINING_ITERATIONS
-    # read optlist
+    # read in optlist
     for (opt, arg) in optlist:
         if opt == '-i':
-            tagged_source = arg
+            train = arg
         elif opt == '-p':
-            model_source = arg
-        elif opt == '-D':
-            model_sink = arg
+            deserialize = arg
+        elif opt == '-I':
+            label = arg
+        elif opt == '-P':
+            serialize = arg
         elif opt == '-E':
-            test_source = arg
+            evaluate = arg
+        elif opt == '-c':
+            tagger_mode = False
+        elif opt == '-h':
+            print_usage()
+            exit(1)
+        elif opt == '-v':
+            logging.basicConfig(level=logging.INFO)
         elif opt == '-T':
-            untagged_source = arg
-        elif opt == '-t':
             try:
                 training_iterations = int(arg)
                 if training_iterations < 1:
-                    raise ValueError('-t arg must be > 0')
+                    raise ValueError('{} arg must be > 0'.format(opt))
             except ValueError as err:
                 logging.error(err)
                 exit(1)
-        elif opt == '-h':
-            exit(USAGE)
-        elif opt == '-v':
-            logging.basicConfig(level=logging.INFO)
         else:
-            print >> stderr, USAGE
+            print_usage()
             logging.error('Option {} not found.'.format(opt, arg))
             exit(1)
 
-    # check outputs
-    if not any((model_sink, untagged_source, test_source)):
-        print >> stderr, USAGE
-        logging.error('No outputs specified.')
-        exit(1)
-
-    # run inputs
-    ppn = None
-    if tagged_source:
-        if model_source:
-            logging.error('Incompatible inputs (-i and -p) specified.')
-            exit(1)
-        logging.info('Training model with "{}".'.format(tagged_source))
+    # inputs
+    labeler = None
+    if deserialize:
         try:
-            ppn = PPNTagger(tag_reader(tagged_source), training_iterations)
+            logging.info('Deserializing "{}".'.format(deserialize))
+            labeler = PPN.load(deserialize)
         except IOError as err:
             logging.error(err)
             exit(1)
-    elif model_source:
-        logging.info('Reading serialized model from "{}".'.format(
-                                                           model_source))
+    if train:
         try:
-            with GzipFile(model_source, 'r') as source:
-                ppn = PPN.load(source)
+            if tagger_mode:
+                logging.info('Training tagger with "{}".'.format(train))
+                labeler_type = PPNTagger
+            else:
+                logging.info('Training chunker with "{}".'.format(train))
+                labeler_type = PPNChunker
+            # actually train
+            labeler = labeler_type()
+            labeler.train(labeler_type.labeled_reader(train),
+                          training_iterations)
         except IOError as err:
             logging.error(err)
             exit(1)
-    else:
-        print >> stderr, USAGE
-        logging.error('No input specified.')
+    if not labeler:
+        print_usage()
+        logging.error('No inputs specified.')
         exit(1)
 
-    # run outputs
-    try:
-        if test_source:
-            logging.info('Evaluating data with "{}".'.format(test_source))
-            with open(test_source, 'r') as source:
-                print 'Accuracy: {:.04f}'.format(ppn.evaluate(
-                                                 tag_reader(test_source)))
-        if untagged_source:
-            logging.info('Tagging "{}".'.format(untagged_source))
-            for sent in ppn.batch_tag(untagged_reader(untagged_source)):
-                print ' '.join(tuple2str(wt) for wt in sent)
-        if model_sink:
-            logging.info('Serializing model to "{}".'.format(model_sink))
-            with GzipFile(model_sink, 'w') as sink:
-                ppn.dump(sink)
-    except IOError as err:
-        logging.error(err)
-        exit(1)
+    # outputs
+    if label:
+        logging.info('Labeling "{}".'.format(label))
+        try:
+            labeler.label(label)
+        except IOError as err:
+            logging.error(err)
+            exit(1)
+    if evaluate:
+        try:
+            labeler.print_evaluation(evaluate)
+        except IOError as err:
+            logging.error(err)
+            exit(1)
+    if serialize:
+        try:
+            labeler.dump(serialize)
+        except IOError as err:
+            logging.error(err)
+            exit(1)
