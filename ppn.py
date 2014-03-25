@@ -479,8 +479,7 @@ class PPNTagger(PPN, TaggerI):
         """
         padded_tokens = self.LPAD + [t.lower() for t in tokens] + self.RPAD
         for (i, ftoken) in enumerate(padded_tokens[2:-2]):
-            # even though `ftoken` is the current token, `i` is the index
-            # of two tokens back
+            # NB: the "target" is i + 2
             featset = ['b']  # initialize with bias term
             # tokens nearby
             featset.append("w-2='{}'".format(padded_tokens[i]))
@@ -510,9 +509,8 @@ class PPNChunker(PPN, ChunkParserI):
         """
         Convert tagged list into shallow parse tree
         """
-        (tokens_pos_tags, chunk_tags) = zip(*sentence)
-        (tokens, pos_tags) = zip(*tokens_pos_tags)
-        return conlltags2tree(zip(tokens, pos_tags, chunk_tags))
+        return conlltags2tree((tokens, pos_tags, chunk_tags) for \
+                             ((tokens, pos_tags), chunk_tags) in sentence)
 
     def parse(self, sentence):
         """
@@ -567,7 +565,6 @@ class PPNChunker(PPN, ChunkParserI):
         padded_tags = self.LPAD + list(pos_tags) + self.RPAD
         for i in xrange(len(tokens)):
             # NB: the "target" is i + 2
-            # bias term
             featset = ['b']
             # token unigrams
             featset.append("w-2='{}'".format(padded_tokens[i]))
