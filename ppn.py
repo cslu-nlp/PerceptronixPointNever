@@ -1,4 +1,4 @@
-#!/usr/bin/env python -O
+#!/usr/bin/env python
 # encoding: UTF-8
 #
 # Copyright (C) 2014 Kyle Gorman & Steven Bedrick
@@ -246,7 +246,7 @@ class PPN(object):
         :param prev_tag: the previous tag
         :rtype: str
         """
-        return "t-1='{}'".format(prev_tag)
+        return "L-1='{}'".format(prev_tag)
 
     def _trigram_tf(self, prev_prev_tag, bigram_feature_string):
         """
@@ -258,7 +258,7 @@ class PPN(object):
         :param bigram_feature_string: a bigram feature string for the
                                       previous tag, created with bigram_tf
         """
-        return "t-2='{}',{}".format(prev_prev_tag, bigram_feature_string)
+        return "L-2='{}',{}".format(prev_prev_tag, bigram_feature_string)
 
     # emission feature class constants
 
@@ -529,7 +529,7 @@ class PPNChunker(PPN, ChunkParserI):
 
     def parse(self, sentence):
         """
-        The sentence is tagged, flattened, then converted to shallow parse
+        The sentence is flattened, tagged, then converted to shallow parse
         """
         return PPNChunker.to_tree(self.tag(sentence))
 
