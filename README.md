@@ -41,9 +41,11 @@ Perceptronix Point Never 0.8, by Kyle Gorman and Steven Bedrick
     Chunker training/evaluation: "token/POS-tag/chunk-tag"
     Chunking: "token/POS-tag" tokens (no chunk tags)
 
+If you want to chunk data that has not yet been POS tagged, tag it first then run chunking on the output.
+
 For anything else, UTSL.
 
-A few Python-based scripts have been added to assist in tagging: 
+A few Python-based scripts have been added to assist in tagging:
 
     * `universal` converts Penn Treebank tags to the Petrov et al. (2012) universal tagset; their results suggest that you may still want to train with a full tagset, and then convert to the universal tagset for downstream applications (or evaluation)
     * `confusion` creates a tagging confusion matrix in CSV format
