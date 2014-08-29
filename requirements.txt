@@ -1,0 +1,2 @@
+-e git://github.com/jsonpickle/jsonpickle.git#egg=jsonpickle
+nltk==3.0.0b2
