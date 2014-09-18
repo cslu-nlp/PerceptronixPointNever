@@ -169,11 +169,11 @@ if __name__ == "__main__":
                            help="enable verbose output")
     argparser.add_argument("-V", "--really-verbose", action="store_true",
                            help="even more verbose output")
-    input_group = argparser.add_mutually_exclusive_group()
+    input_group = argparser.add_mutually_exclusive_group(required=True)
     input_group.add_argument("-t", "--train", help="training data")
     input_group.add_argument("-r", "--read",
                              help="read in serialized model")
-    output_group = argparser.add_mutually_exclusive_group()
+    output_group = argparser.add_mutually_exclusive_group(required=True)
     output_group.add_argument("-u", "--tag", help="tag unlabeled data")
     output_group.add_argument("-w", "--write",
                               help="write out serialized model")
@@ -182,7 +182,7 @@ if __name__ == "__main__":
     argparser.add_argument("-O", type=int, default=O,
                            help="Markov order\t(default: {})".format(O))
     argparser.add_argument("-T", type=int, default=T,
-                           help="# of epochs   (default: {})".format(T))
+                           help="# of epochs\t(default: {})".format(T))
     args = argparser.parse_args()
     # verbosity block
     if args.verbose:
