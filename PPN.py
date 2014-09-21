@@ -36,8 +36,8 @@ from decorators import IO_or_die, listify
 from perceptron import SequenceAveragedPerceptron as SequenceClassifier
 
 
-O = 2
-T = 10
+EPOCHS = 10
+ORDER = 2
 
 LPAD = ["<S1>", "<S0>"]
 RPAD = ["</S0>", "</S1>"]
@@ -78,7 +78,7 @@ def fstring(key, value):
 
 
 @listify
-def efeats(tokens, O=O):
+def efeats(tokens, order=ORDER):
     """
     Compute list of lists of emission features for each token in 
     the `tokens` iterator
@@ -87,8 +87,9 @@ def efeats(tokens, O=O):
     for (i, token) in enumerate(padded_tokens[2:-2], 2):
         feats = ["(bias)"]
         # adjacent tokens
-        for j in range(-O, O + 1):
-            feats.append(fstring("w{:+d}".format(j), padded_tokens[i + j]))
+        for j in range(-order, order + 1):
+            feats.append(fstring("w_i{:+d}".format(j),
+                                 padded_tokens[i + j]))
         # orthographic matters
         if token.isdigit():
             feats.append("(digits)")
@@ -114,18 +115,18 @@ def tfeats(tags):
     >>> d = 3
     >>> tags = "RB DT JJ NN".split()
     >>> sorted(tfeats(tags[:1]))
-    ["t-1='RB'"]
+    ["t_i-1='RB'"]
     >>> sorted(tfeats(tags[:3]))
-    ["t-1='JJ'", "t-2,t-1='DT','JJ'", "t-3,t-2,t-1='RB','DT','JJ'"]
+    ["t_i-1='JJ'", "t_i-2,t_i-1='DT','JJ'", "t_i-3,t_i-2,t_i-1='RB','DT','JJ'"]
     """
     feats = []
     if not tags:
         return feats
     i = 1
-    tfeat_key = "t-{}".format(i)
+    tfeat_key = "t_i-{}".format(i)
     feats.append(fstring(tfeat_key, tags[-i]))
     for i in range(2, 1 + len(tags)):
-        tfeat_key = "t-{},{}".format(i, tfeat_key)
+        tfeat_key = "t_i-{},{}".format(i, tfeat_key)
         vstring = ",".join("'{}'".format(tag) for tag in tags[-i:])
         feats.append("{}={}".format(tfeat_key, vstring))
     return feats
@@ -136,19 +137,21 @@ class Tagger(JSONable):
     Part-of-speech tagger, backed by a classifier
     """
 
-    def __init__(self, *, tfeats_fnc=tfeats, O=O, sentences=None, T=T):
-        self.classifier = SequenceClassifier(tfeats_fnc=tfeats_fnc, O=O)
+    def __init__(self, *, tfeats_fnc=tfeats, order=ORDER, epochs=EPOCHS,
+                sentences):
+        self.classifier = SequenceClassifier(tfeats_fnc=tfeats_fnc,
+                                             order=order)
         if sentences:
-            self.fit(sentences, T=T)
+            self.fit(sentences, epochs=epochs)
 
-    def fit(self, sentences, T=T):
+    def fit(self, sentences, epochs=EPOCHS):
         XX = []
         YY = []
         for sentence in sentences:
             (tokens, tags) = zip(*sentence)
             XX.append(efeats(tokens))
             YY.append(list(tags))
-        self.classifier.fit(XX, YY, T)
+        self.classifier.fit(XX, YY, epochs)
 
     @listify
     def tag(self, tokens):
@@ -179,10 +182,10 @@ if __name__ == "__main__":
                               help="write out serialized model")
     output_group.add_argument("-e", "--evaluate",
                               help="evaluate on labeled data")
-    argparser.add_argument("-O", type=int, default=O,
-                           help="Markov order\t(default: {})".format(O))
-    argparser.add_argument("-T", type=int, default=T,
-                           help="# of epochs\t(default: {})".format(T))
+    argparser.add_argument("-E", "--epochs", type=int, default=EPOCHS,
+                           help="# of epochs (default: {})".format(EPOCHS))
+    argparser.add_argument("-O", "--order", type=int, default=ORDER,
+                           help="Markov order (default: {})".format(ORDER))
     args = argparser.parse_args()
     # verbosity block
     if args.verbose:
@@ -199,7 +202,8 @@ if __name__ == "__main__":
     if args.train:
         logging.info("Training on labeled data '{}'.".format(args.train))
         sentences = tagged_corpus(args.train)
-        tagger = Tagger(O=args.O, sentences=sentences, T=args.T)
+        tagger = Tagger(epochs=args.epochs, order=args.order, 
+                        sentences=sentences)
     elif args.read:
         logging.info("Reading pretrained tagger '{}'.".format(args.read))
         tagger = IO_or_die(Tagger.load)(args.read)

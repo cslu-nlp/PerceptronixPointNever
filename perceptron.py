@@ -1,4 +1,4 @@
-#!/usr/bin/env python -O
+#!/usr/bin/env python
 #
 # Copyright (C) 2014 Kyle Gorman
 #
@@ -17,18 +17,30 @@
 # OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
 # MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
 # IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
-# CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+# PLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
 # TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 # SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-#
-# sequencetagger.py: online sequence tagging library
+
+"""
+perceptron: perceptron-like classifers, including:
+
+* `BinaryPerceptron`: binary perceptron classifier
+* `Perceptron`: multiclass perceptron classifier using the "one vs. 
+   all" strategy
+* `SequencePerceptron`: multiclass perceptron for sequence tagging
+
+* `BinaryAveragedPerceptron`: binary averaged perceptron classifier
+   vs. all" strategy
+* `AveragedPerceptron`: multiclass averaged perceptron using the "one 
+   vs. all" strategy
+* `SequencePerceptron`: multiclass averaged perceptron for sequence tagging
+"""
 
 
 import logging
 
 from time import time
 from random import Random
-from heapq import nlargest
 from functools import partial
 from operator import itemgetter
 from collections import defaultdict, namedtuple
@@ -39,9 +51,66 @@ from decorators import reversify
 
 
 INF = float("inf")
+ORDER = 0
+EPOCHS = 1
 
 
-class Perceptron(JSONable):
+class Fit(object):
+
+    """
+    Mixin for fitting method
+    """
+
+    def fit(self, X, Y, epochs=EPOCHS):
+        data = list(zip(X, Y))  # which is a copy
+        logging.info("Starting {} epoch(s) of training.".format(epochs))
+        for i in range(1, 1 + epochs):
+            logging.info("Starting epoch {:>2}.".format(i))
+            tic = time()
+            accuracy = Accuracy()
+            self.random.shuffle(data)
+            for (x, y) in data:
+                yhat = self.fit_one(x, y)
+                accuracy.update(y, yhat)
+            logging.debug("Epoch {:>2} accuracy: {:.04f}.".format(i,
+                                                 accuracy.accuracy))
+            logging.debug("Epoch {:>2} time elapsed: {}s.".format(i,
+                                                 int(time() - tic)))
+
+
+class BinaryPerceptron(Fit, JSONable):
+
+    """
+    Binary perceptron classifier
+    """
+
+    def __init__(self, *, seed=None):
+        self.random = Random(seed)
+        self.weights = defaultdict(int)
+    
+    def score(self, x):
+        return sum(self.weights[feature] for feature in x)
+
+    def predict(self, x):
+        return self.score(x) >= 0
+
+    def fit_one(self, x, y):
+        yhat = self.predict(x)
+        if y != yhat:
+            self.update(x, y)
+        return yhat
+
+    def update(self, x, y, tau=1):
+        if y is False:
+            tau *= -1
+        elif y is not True:
+            raise ValueError("`y` is not boolean")
+        for feature in x:
+            self.weights[feature] += tau
+
+
+
+class Perceptron(Fit, JSONable):
 
     """
     The multiclass perceptron with sparse binary feature vectors:
@@ -53,8 +122,7 @@ class Perceptron(JSONable):
     feature is "firing" and absence indicates that that it is not firing.
     This class is primarily to be used as an abstract base class; in most
     cases, the regularization and stability afforded by the averaged
-    perceptron (`AveragedPerceptron`) or the passive-aggressive classifier
-    (`PAClassifier`) will be worth it.
+    perceptron (`AveragedPerceptron`) will be worth it.
 
     The perceptron was first proposed in the following paper:
 
@@ -69,8 +137,6 @@ class Perceptron(JSONable):
         self.classes = {default}
         self.random = Random(seed)
         self.weights = defaultdict(partial(defaultdict, int))
-
-    # scoring
 
     def score(self, x, y):
         """
@@ -88,24 +154,9 @@ class Perceptron(JSONable):
                 scores[cls] += weight
         return scores
 
-    # prediction
-
-    def predict_slow(self, x):
-        """
-        Get scores for all classes using the feature vector `x`. If/when
-        ties arise, resolve them randomly. This is slower than `predict`.
-        """
-        scores = self.scores(x)
-        (_, max_score) = max(scores.items(), key=itemgetter(1))
-        argmax_scores = [cls for (cls, score) in scores.items()
-                         if score == max_score]
-        return self.random.choice(argmax_scores)
-
     def predict(self, x):
         """
-        Same as `predict_slow`, but ties are resolved according to
-        dictionary order, rather than randomly. Obviously, this is faster
-        than `predict_slow`.
+        Predict most likely class for the feature vector `x`
         """
         scores = self.scores(x)
         (argmax_score, _) = max(scores.items(), key=itemgetter(1))
@@ -117,22 +168,6 @@ class Perceptron(JSONable):
         if y != yhat:
             self.update(x, y, yhat)
         return yhat
-
-    def fit(self, X, Y, T=1):
-        data = list(zip(X, Y))  # which is a copy
-        logging.info("Starting {} epochs of training.".format(T))
-        for i in range(1, 1 + T):
-            logging.info("Starting epoch {:>2}.".format(i))
-            tic = time()
-            accuracy = Accuracy()
-            self.random.shuffle(data)
-            for (x, y) in data:
-                yhat = self.fit_one(x, y)
-                accuracy.update(y, yhat)
-            logging.debug("Epoch {:>2} accuracy.:\t{:.04f}.".format(i,
-                                                   accuracy.accuracy))
-            logging.debug("Epoch {:>2} time:\t{}s.".format(i,
-                                          int(time() - tic)))
 
     def update(self, x, y, yhat, tau=1):
         """
@@ -149,14 +184,15 @@ TrellisCell = namedtuple("TrellisCell", ["score", "pointer"])
 
 
 class SequencePerceptron(Perceptron):
+
     """
     Perceptron with Viterbi-decoding powers
     """
 
-    def __init__(self, *, tfeats_fnc=None, O=0, **kwargs):
+    def __init__(self, *, tfeats_fnc=None, order=ORDER, **kwargs):
         super(SequencePerceptron, self).__init__(**kwargs)
         self.tfeats_fnc = tfeats_fnc
-        self.O = O
+        self.order = order
 
     def predict(self, xx):
         """
@@ -182,7 +218,7 @@ class SequencePerceptron(Perceptron):
         `TrellisCell` elements, which contain the state score and a
         backpointer.
         """
-        if self.O <= 0:
+        if self.order <= 0:
             return self._markov0_trellis(xx)
         else:
             return self._viterbi_trellis(xx)
@@ -191,12 +227,12 @@ class SequencePerceptron(Perceptron):
         """
         Construct a trellis for Markov order-0.
         """
-        trellis = [{state: TrellisCell(score, None) for (state, score) in \
+        trellis = [{state: TrellisCell(score, None) for (state, score) in
                     self.scores(xx[0]).items()}]
         for x in xx[1:]:
             (pstate, (pscore, _)) = max(trellis[-1].items(),
                                         key=itemgetter(1))
-            column = {state: TrellisCell(pscore + escore, pstate) for \
+            column = {state: TrellisCell(pscore + escore, pstate) for
                       (state, escore) in self.scores(x).items()}
             trellis.append(column)
         return trellis
@@ -210,12 +246,12 @@ class SequencePerceptron(Perceptron):
         trellis = [{state: TrellisCell(score, None) for (state, score) in
                     self.scores(xx[0]).items()}]
         for x in xx[1:]:
-            pcolumns = trellis[-self.O:]
+            pcolumns = trellis[-elf.O:]
             # store previous state scores
-            pscores = {state: score for (state, (score, pointer)) in \
+            pscores = {state: score for (state, (score, pointer)) in
                        pcolumns[-1].items()}
             # store best previous state + transmission scores
-            ptscores = {state: TrellisCell(-INF, None) for state in \
+            ptscores = {state: TrellisCell(-INF, None) for state in
                         self.classes}
             # find the previous state which maximizes the previous state +
             # the transmission scores
@@ -247,14 +283,14 @@ class SequencePerceptron(Perceptron):
         for (i, (x, y, yhat)) in enumerate(zip(xx, yy, yyhat)):
             if y != yhat:
                 # add hypothesized t-features to observed e-features
-                x += self.tfeats_fnc(yyhat[i - self.O:i])
+                x += self.tfeats_fnc(yyhat[i - self.order:i])
                 self.update(x, y, yhat)
         return yyhat
 
-    def fit(self, XX, YY, T=1):
+    def fit(self, XX, YY, epochs=EPOCHS):
         data = list(zip(XX, YY))
-        logging.info("Starting {} epochs of training.".format(T))
-        for i in range(1, 1 + T):
+        logging.info("Starting {} epoch(s) of training.".format(epochs))
+        for i in range(1, 1 + epochs):
             logging.info("Starting epoch {:>2}.".format(i))
             tic = time()
             accuracy = Accuracy()
@@ -263,10 +299,10 @@ class SequencePerceptron(Perceptron):
                 yyhat = self.fit_one(xx, yy)
                 for (y, yhat) in zip(yy, yyhat):
                     accuracy.update(y, yhat)
-            logging.debug("Epoch {:>2} accuracy:\t{:.04f}.".format(i,
-                                                   accuracy.accuracy))
-            logging.debug("Epoch {:>2} time elapsed:\t{}s.".format(i,
-                                                      int(time() - tic)))
+            logging.debug("Epoch {:>2} accuracy: {:.04f}.".format(i,
+                                                 accuracy.accuracy))
+            logging.debug("Epoch {:>2} time elapsed: {}s.".format(i,
+                                                 int(time() - tic)))
 
 
 class LazyWeight(JSONable):
@@ -340,7 +376,42 @@ class LazyWeight(JSONable):
         self.weight += value
 
 
+class BinaryAveragedPerceptron(BinaryPerceptron):
+
+    def __init__(self, *, seed=None):
+        self.random = Random(seed)
+        self.weights = defaultdict(LazyWeight)
+        self.time = 0
+
+    def predict(self, x):
+        score = sum(self.weights[feature].get(self.time) for feature in x)
+        return score >= 0
+
+    def fit_one(self, x, y):
+        retval = super(BinaryAveragedPerceptron, self).fit_one(x, y)
+        self.time += 1
+        return retval
+
+    def update(self, x, y, tau=1):
+        if y is False:
+            tau *= -1
+        elif y is not True:
+            raise ValueError("y is not boolean")
+        for feature in x:
+            self.weights[feature].update(tau, self.time)
+
+
 class AveragedPerceptron(Perceptron):
+
+    def __init__(self, *, default=None, seed=None):
+        self.classes = {default}
+        self.random = Random(seed)
+        self.classifiers = defaultdict(partial(defaultdict,
+                                               BinaryPerceptron))
+
+
+class AveragedPerceptron(Perceptron):
+
     """
     The multiclass perceptron with sparse binary feature vectors, with
     averaging for stability and regularization.
@@ -388,63 +459,10 @@ class AveragedPerceptron(Perceptron):
 
 class SequenceAveragedPerceptron(AveragedPerceptron, SequencePerceptron):
 
-    def __init__(self, *, tfeats_fnc=None, O=0, **kwargs):
+    def __init__(self, *, tfeats_fnc=None, order=ORDER, **kwargs):
         super(SequenceAveragedPerceptron, self).__init__(**kwargs)
         self.tfeats_fnc = tfeats_fnc
-        self.O = O
-
-
-class PAClassifier(Perceptron):
-    """
-    The multiclass perceptron with sparse binary feature vectors, using
-    a hinge loss function to enforce a unit margin.
-
-    This algorithm was proposed in the following paper:
-
-    K. Crammer, O. Dekel, J. Keshet, S. Shalev-Shvartz, and Y. Singer.
-    2006. Online passive-aggressive algorithms. Journal of Machine
-    Learning Research. 7: 551-585.
-    
-    Strictly speaking, this is a variant known as "PA-I", which is more
-    tolerant to noise. However, the default value for C, the aggressiveness
-    parameter, is infinite. In this case, this is equivalent to the
-    original "PA" algorithm.
-    """
-
-    def __init__(self, *, default=None, seed=None, C=INF):
-        self.classes = {default}
-        self.random = Random(seed)
-        self.C = C
-        self.weights = defaultdict(partial(defaultdict, int))
-
-    def tau(self, x, margin):
-        return min(self.C, (1. - margin) / (2 * len(x)))
-
-    def fit_one(self, x, y):
-        self.classes.add(y)
-        scores = self.scores(x)
-        (yhat, margin) = PAClassifier._fit_one_helper(y, self.scores(x))
-        if margin < 1.:
-            self.update(x, y, yhat, self.tau(x, margin))
-        return yhat
-
-    @staticmethod
-    def _fit_one_helper(y, scores):
-        (top, second) = nlargest(2, scores, key=itemgetter(1))
-        (top_cls, top_score) = top
-        (_, second_score) = second
-        if top_cls == y:
-            # highest ranked class is y, and next best class is yhat
-            yhat = y
-            margin = top_score - second_score
-        else:
-            # top class is yhat, so we look up the score for y
-            yhat = top_cls
-            margin = scores[y] - top_cls
-        return (yhat, margin)
-
-
-# TODO: do sequence classification with PAClassifier
+        self.order = order
 
 
 if __name__ == "__main__":
