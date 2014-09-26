@@ -1,1 +1,1 @@
-from PPN import Tagger
+from .PPN import Tagger
