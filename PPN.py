@@ -32,7 +32,7 @@ from nltk import str2tuple, tuple2str
 
 from jsonable import JSONable
 from confusion import Accuracy
-from decorators import IO_or_die, listify
+from decorators import IO, listify
 from perceptron import SequenceAveragedPerceptron as SequenceClassifier
 
 
@@ -48,7 +48,7 @@ LOGGING_FMT = "%(message)s"
 # helpers
 
 
-@IO_or_die
+@IO
 @listify
 def tagged_corpus(filename):
     """
@@ -59,7 +59,7 @@ def tagged_corpus(filename):
             yield [str2tuple(wt) for wt in line.split()]
 
 
-@IO_or_die
+@IO
 @listify
 def untagged_corpus(filename):
     """
@@ -206,7 +206,7 @@ if __name__ == "__main__":
                         sentences=sentences)
     elif args.read:
         logging.info("Reading pretrained tagger '{}'.".format(args.read))
-        tagger = IO_or_die(Tagger.load)(args.read)
+        tagger = IO(Tagger.load)(args.read)
     # else unreachable
     # output
     if args.tag:
@@ -215,7 +215,7 @@ if __name__ == "__main__":
             print(" ".join(tuple2str(wt) for wt in tagger.tag(tokens)))
     elif args.write:
         logging.info("Writing trained tagger to '{}'.".format(args.write))
-        IO_or_die(tagger.dump)(args.write)
+        IO(tagger.dump)(args.write)
     elif args.evaluate:
         logging.info("Evaluating tagged data '{}'.".format(args.evaluate))
         accuracy = Accuracy()

@@ -53,8 +53,21 @@ def reversify(fnc):
         return retval
     return patched
 
+def mean(fnc):
+    """
+    Convert a function which returns an iterable of numbers to one 
+    which returns the mean value, iteratively computed to avoid overflow.
+    Recommended by Knuth, AoCP, 2.4.2.2.
+    """
+    @wraps(fnc)
+    def patched(*args, **kwargs):
+        avg = 0
+        for (i, val) in enumerate(fnc(*args, **kwargs), 1):
+            avg += (val - avg) / i
+        return avg
+    return patched
 
-def IO_or_die(fnc):
+def IO(fnc):
     """
     Convert a function which may throw an IOError to one which logs the
     error and quits, if it arises.
