@@ -53,19 +53,31 @@ def reversify(fnc):
         return retval
     return patched
 
-def mean(fnc):
+
+def setify(gen):
     """
-    Convert a function which returns an iterable of numbers to one 
-    which returns the mean value, iteratively computed to avoid overflow.
-    Recommended by Knuth, AoCP, 2.4.2.2.
+    Convert a generator into a function which returns a set
     """
-    @wraps(fnc)
+    @wraps(gen)
+    def patched(*args, **kwargs):
+        return set(gen(*args, **kwargs))
+    return patched
+
+
+def meanify(fnc):
+    """
+    Convert a generator of numbers to one which returns the mean value, 
+    iteratively computed to avoid overflow. This algorithm is recommended 
+    by Knuth (AoCP, 2.4.2.2).
+    """
+    @wraps(gen)
     def patched(*args, **kwargs):
         avg = 0
-        for (i, val) in enumerate(fnc(*args, **kwargs), 1):
+        for (i, val) in enumerate(gen(*args, **kwargs), 1):
             avg += (val - avg) / i
         return avg
     return patched
+
 
 def IO(fnc):
     """
