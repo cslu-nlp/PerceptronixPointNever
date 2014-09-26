@@ -12,7 +12,7 @@ PPN has been tested on CPython 3.4 and PyPy3 (2.3.1, corresponding to Python 3.2
 Usage
 -----
 
-    usage: PPN.py [-h] [-v] [-V] [-t TRAIN | -r READ]
+    usage: python -m PPN [-h] [-v] [-V] [-t TRAIN | -r READ]
                   [-u TAG | -w WRITE | -e EVALUATE] [-O O] [-T T]
 
     Perceptronix Point Never, by Kyle Gorman
