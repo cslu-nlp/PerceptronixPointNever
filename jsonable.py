@@ -29,6 +29,7 @@ from jsonpickle import decode, encode
 
 
 class JSONable(object):
+
     """
     Mixin which makes a class support `jsonpickle`
     """

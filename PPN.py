@@ -133,12 +133,13 @@ def tfeats(tags):
 
 
 class Tagger(JSONable):
+
     """
     Part-of-speech tagger, backed by a classifier
     """
 
     def __init__(self, *, tfeats_fnc=tfeats, order=ORDER, epochs=EPOCHS,
-                sentences):
+                 sentences):
         self.classifier = SequenceClassifier(tfeats_fnc=tfeats_fnc,
                                              order=order)
         if sentences:
@@ -202,7 +203,7 @@ if __name__ == "__main__":
     if args.train:
         logging.info("Training on labeled data '{}'.".format(args.train))
         sentences = tagged_corpus(args.train)
-        tagger = Tagger(epochs=args.epochs, order=args.order, 
+        tagger = Tagger(epochs=args.epochs, order=args.order,
                         sentences=sentences)
     elif args.read:
         logging.info("Reading pretrained tagger '{}'.".format(args.read))

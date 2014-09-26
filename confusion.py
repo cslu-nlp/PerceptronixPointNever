@@ -34,6 +34,7 @@ INF = float("inf")
 
 
 class Accuracy(object):
+
     """
     Accuracy measure for classification task
     """
@@ -75,6 +76,7 @@ class Accuracy(object):
 
 
 class BinaryConfusion(object):
+
     """
     Binary confusion matrix, including summary statistics
     """
@@ -269,6 +271,7 @@ class BinaryConfusion(object):
 
 
 class Confusion(object):
+
     """
     Generic confusion matrix
     """

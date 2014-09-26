@@ -73,9 +73,9 @@ class Fit(object):
                 yhat = self.fit_one(x, y)
                 accuracy.update(y, yhat)
             logging.debug("Epoch {:>2} accuracy: {:.04f}.".format(i,
-                                                 accuracy.accuracy))
+                                                                  accuracy.accuracy))
             logging.debug("Epoch {:>2} time elapsed: {}s.".format(i,
-                                                 int(time() - tic)))
+                                                                  int(time() - tic)))
 
 
 class BinaryPerceptron(Fit, JSONable):
@@ -87,7 +87,7 @@ class BinaryPerceptron(Fit, JSONable):
     def __init__(self, *, seed=None):
         self.random = Random(seed)
         self.weights = defaultdict(int)
-    
+
     def score(self, x):
         return sum(self.weights[feature] for feature in x)
 
@@ -107,7 +107,6 @@ class BinaryPerceptron(Fit, JSONable):
             raise ValueError("`y` is not boolean")
         for feature in x:
             self.weights[feature] += tau
-
 
 
 class Perceptron(Fit, JSONable):
@@ -300,9 +299,9 @@ class SequencePerceptron(Perceptron):
                 for (y, yhat) in zip(yy, yyhat):
                     accuracy.update(y, yhat)
             logging.debug("Epoch {:>2} accuracy: {:.04f}.".format(i,
-                                                 accuracy.accuracy))
+                                                                  accuracy.accuracy))
             logging.debug("Epoch {:>2} time elapsed: {}s.".format(i,
-                                                 int(time() - tic)))
+                                                                  int(time() - tic)))
 
 
 class LazyWeight(JSONable):
