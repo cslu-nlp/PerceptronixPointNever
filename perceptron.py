@@ -45,7 +45,6 @@ from functools import partial
 from operator import itemgetter
 from collections import defaultdict, namedtuple
 
-from .jsonable import JSONable
 from .confusion import Accuracy
 from .decorators import reversify
 
@@ -78,7 +77,7 @@ class Fit(object):
                                                                   int(time() - tic)))
 
 
-class BinaryPerceptron(Fit, JSONable):
+class BinaryPerceptron(Fit):
 
     """
     Binary perceptron classifier
@@ -109,7 +108,7 @@ class BinaryPerceptron(Fit, JSONable):
             self.weights[feature] += tau
 
 
-class Perceptron(Fit, JSONable):
+class Perceptron(Fit):
 
     """
     The multiclass perceptron with sparse binary feature vectors:
@@ -304,7 +303,7 @@ class SequencePerceptron(Perceptron):
                                                                   int(time() - tic)))
 
 
-class LazyWeight(JSONable):
+class LazyWeight(object):
 
     """
     Helper class for `AveragedPerceptron`:
