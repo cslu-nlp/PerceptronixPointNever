@@ -45,9 +45,9 @@ from functools import partial
 from operator import itemgetter
 from collections import defaultdict, namedtuple
 
-from .jsonable import JSONable
-from .confusion import Accuracy
-from .decorators import reversify
+from jsonable import JSONable
+from confusion import Accuracy
+from decorators import reversify
 
 
 INF = float("inf")
