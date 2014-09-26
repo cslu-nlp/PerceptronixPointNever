@@ -45,8 +45,8 @@ from functools import partial
 from operator import itemgetter
 from collections import defaultdict, namedtuple
 
-from .confusion import Accuracy
-from .decorators import reversify
+from confusion import Accuracy
+from decorators import reversify
 
 
 INF = float("inf")
