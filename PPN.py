@@ -30,10 +30,10 @@ from time import time
 from functools import lru_cache
 from nltk import str2tuple, tuple2str
 
-from jsonable import JSONable
-from confusion import Accuracy
-from decorators import IO, listify
-from perceptron import SequenceAveragedPerceptron as SequenceClassifier
+from .jsonable import JSONable
+from .confusion import Accuracy
+from .decorators import IO, listify
+from .perceptron import SequenceAveragedPerceptron as SequenceClassifier
 
 
 EPOCHS = 10
