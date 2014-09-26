@@ -246,7 +246,7 @@ class SequencePerceptron(Perceptron):
         trellis = [{state: TrellisCell(score, None) for (state, score) in
                     self.scores(xx[0]).items()}]
         for x in xx[1:]:
-            pcolumns = trellis[-elf.O:]
+            pcolumns = trellis[-self.O:]
             # store previous state scores
             pscores = {state: score for (state, (score, pointer)) in
                        pcolumns[-1].items()}
