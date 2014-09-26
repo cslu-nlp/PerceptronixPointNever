@@ -64,7 +64,7 @@ def setify(gen):
     return patched
 
 
-def meanify(fnc):
+def meanify(gen):
     """
     Convert a generator of numbers to one which returns the mean value, 
     iteratively computed to avoid overflow. This algorithm is recommended 
