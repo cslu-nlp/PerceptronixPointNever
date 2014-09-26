@@ -1,6 +1,4 @@
-from .confusion import *
-from .decorators import *
-from .jsonable import JSONable
+from .decorators import IO
 from .tagger import Tagger, EPOCHS, ORDER, tagged_corpus, untagged_corpus
 
 import logging
