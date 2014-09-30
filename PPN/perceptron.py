@@ -216,6 +216,8 @@ class SequencePerceptron(Perceptron):
         `TrellisCell` elements, which contain the state score and a
         backpointer.
         """
+        if not xx:
+            return []
         if self.order <= 0:
             return self._markov0_trellis(xx)
         else:
