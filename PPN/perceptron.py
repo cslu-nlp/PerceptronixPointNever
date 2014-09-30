@@ -204,6 +204,8 @@ class SequencePerceptron(Perceptron):
         The time complexity of this operation is O(n t^2) where n is the
         sequence length and t is the cardinality of the tagset.
         """
+        if not xx:
+            return []
         trellis = self._trellis(xx)
         (best_last_state, _) = max(trellis[-1].items(), key=itemgetter(1))
         return self._traceback(trellis, best_last_state)
@@ -216,8 +218,6 @@ class SequencePerceptron(Perceptron):
         `TrellisCell` elements, which contain the state score and a
         backpointer.
         """
-        if not xx:
-            return []
         if self.order <= 0:
             return self._markov0_trellis(xx)
         else:
