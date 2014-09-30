@@ -28,7 +28,8 @@ import logging
 
 from time import time
 from functools import lru_cache
-from nltk import str2tuple, tuple2str
+
+from nltk import str2tuple
 
 from .jsonable import JSONable
 from .confusion import Accuracy
