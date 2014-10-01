@@ -71,9 +71,9 @@ class Classifier(object):
             for (x, y) in data:
                 yhat = self.fit_one(x, y)
                 accuracy.update(y, yhat)
-            logging.debug("Epoch {:>2} accuracy: ".format(epoch,
+            logging.debug("Epoch {:>2} accuracy: {}".format(epoch,
                                    self._accuracy_str(epoch, accuracy)))
-            logging.debug("Epoch {:>2} time elapsed: {}s.".format(epoch,
+            logging.debug("Epoch {:>2} time elapsed: {}.".format(epoch,
                                                    self._time_str(tic)))
 
     def _accuracy_str(self, accuracy):
