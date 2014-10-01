@@ -306,7 +306,7 @@ class SequencePerceptron(Perceptron):
                 for (y, yhat) in zip(yy, yyhat):
                     accuracy.update(y, yhat)
             logging.debug("Epoch {:>2} accuracy: ".format(epoch,
-                                   self._accuracy_str(epoch, accuracy)))
+                                 self._accuracy_str(accuracy)))
             logging.debug("Epoch {:>2} time elapsed: {}s.".format(epoch,
                                                    self._time_str(tic)))
 
