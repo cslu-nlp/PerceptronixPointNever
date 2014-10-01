@@ -54,10 +54,10 @@ ORDER = 0
 EPOCHS = 1
 
 
-class Fit(object):
+class Classifier(object):
 
     """
-    Mixin for fitting method
+    Mixin for shared classifier methods
     """
 
     def fit(self, X, Y, epochs=EPOCHS):
@@ -71,13 +71,19 @@ class Fit(object):
             for (x, y) in data:
                 yhat = self.fit_one(x, y)
                 accuracy.update(y, yhat)
-            logging.debug("Epoch {:>2} accuracy: {:.04f}.".format(i,
-                                                 accuracy.accuracy))
-            logging.debug("Epoch {:>2} time elapsed: {}s.".format(i,
-                                                 int(time() - tic)))
+            logging.debug("Epoch {:>2} accuracy: ".format(epoch,
+                                   self._accuracy_str(epoch, accuracy)))
+            logging.debug("Epoch {:>2} time elapsed: {}s.".format(epoch,
+                                                   self._time_str(tic)))
+
+    def _accuracy_str(self, accuracy):
+        return "{1:.04f} [{0:.04f}, {2:.04f}].".format(*accuracy.confint)
+
+    def _time_elapsed_str(self, tic):
+        return "{}s".format(int(time() - tic))
 
 
-class BinaryPerceptron(Fit):
+class BinaryPerceptron(Classifier):
 
     """
     Binary perceptron classifier
@@ -108,7 +114,7 @@ class BinaryPerceptron(Fit):
             self.weights[feature] += tau
 
 
-class Perceptron(Fit):
+class Perceptron(Classifier):
 
     """
     The multiclass perceptron with sparse binary feature vectors:
@@ -290,8 +296,8 @@ class SequencePerceptron(Perceptron):
     def fit(self, XX, YY, epochs=EPOCHS):
         data = list(zip(XX, YY))
         logging.info("Starting {} epoch(s) of training.".format(epochs))
-        for i in range(1, 1 + epochs):
-            logging.info("Starting epoch {:>2}.".format(i))
+        for epoch in range(1, 1 + epochs):
+            logging.info("Starting epoch {:>2}.".format(epoch))
             tic = time()
             accuracy = Accuracy()
             self.random.shuffle(data)
@@ -299,10 +305,10 @@ class SequencePerceptron(Perceptron):
                 yyhat = self.fit_one(xx, yy)
                 for (y, yhat) in zip(yy, yyhat):
                     accuracy.update(y, yhat)
-            logging.debug("Epoch {:>2} accuracy: {:.04f}.".format(i,
-                                                 accuracy.accuracy))
-            logging.debug("Epoch {:>2} time elapsed: {}s.".format(i,
-                                                 int(time() - tic)))
+            logging.debug("Epoch {:>2} accuracy: ".format(epoch,
+                                   self._accuracy_str(epoch, accuracy)))
+            logging.debug("Epoch {:>2} time elapsed: {}s.".format(epoch,
+                                                   self._time_str(tic)))
 
 
 class LazyWeight(object):
