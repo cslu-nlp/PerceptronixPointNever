@@ -32,8 +32,39 @@ from collections import defaultdict
 NAN = float("nan")
 INF = float("inf")
 
+class ConfusionMixin(object):
+    
+    """
+    Confusion methods shared by all three non-abstract classes
+    """
 
-class Accuracy(object):
+    def batch_update(self, truths, guesses):
+        for (truth, guess) in zip(truths, guesses):
+            self.update(truth, guess)
+
+    @property
+    def confint(self):
+        """
+        Compute 95% binomial confidence intervals around the sample
+        accuracy using the Wilson method. Alpha is fixed at .05, as it's
+        a pain to compute the inverse error (i.e., R's qnorm).
+
+        The return value is a (lower_bound, accuracy, upper_bound) tuple.
+        """
+        p = self.accuracy
+        if not len(self):
+            return (0., 1.)
+        n = len(self)
+        phat = self.accuracy
+        z = 1.959963984540053827388  # = -qnorm(alpha=.05 / 2)
+        zsq = z * z
+        a1 = 1. / (1. + zsq / n)
+        a2 = phat + zsq / (2 * n)
+        a3 = z * sqrt(phat * (1. - phat) / n + zsq / (4 * n * n))
+        return (a1 * (a2 - a3), phat, a1 * (a2 + a3))
+
+
+class Accuracy(ConfusionMixin):
 
     """
     Accuracy measure for classification task
@@ -56,10 +87,6 @@ class Accuracy(object):
         else:
             self.incorrect += 1
 
-    def batch_update(self, truths, guesses):
-        for (truth, guess) in zip(truths, guesses):
-            self.update(truth, guess)
-
     def __add__(self, right):
         """
         Combine two accuracy objects
@@ -75,7 +102,7 @@ class Accuracy(object):
         return self.correct / len(self)
 
 
-class BinaryConfusion(object):
+class BinaryConfusion(ConfusionMixin):
 
     """
     Binary confusion matrix, including summary statistics
@@ -274,7 +301,7 @@ class BinaryConfusion(object):
         return 1. - self.PPV
 
 
-class Confusion(object):
+class Confusion(ConfusionMixin):
 
     """
     Generic confusion matrix
@@ -328,6 +355,7 @@ class Confusion(object):
                     correct += count
                 length += count
         return correct / length
+
 
 if __name__ == "__main__":
     import doctest
