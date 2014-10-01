@@ -126,6 +126,10 @@ class BinaryConfusion(object):
         else:
             self.tn += 1
 
+    def batch_update(self, truths, guesses):
+        for (truth, guess) in zip(truths, guesses):
+            self.update(truth, guess)
+
     def __add__(self, right):
         """
         Combine two binary confusion matrices
@@ -294,6 +298,10 @@ class Confusion(object):
 
     def update(self, truth, guess, k=1):
         self.matrix[truth][guess] += k
+
+    def batch_update(self, truths, guesses):
+        for (truth, guess) in zip(truths, guesses):
+            self.update(truth, guess)
 
     def __add__(self, right):
         """
