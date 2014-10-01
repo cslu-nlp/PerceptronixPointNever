@@ -3,6 +3,7 @@
 from nltk import tuple2str
 
 from .decorators import IO
+from .confusion import Confusion
 from .tagger import Tagger, EPOCHS, ORDER, tagged_corpus, untagged_corpus
 
 import logging
@@ -64,10 +65,10 @@ if __name__ == "__main__":
         IO(tagger.dump)(args.write)
     elif args.evaluate:
         logging.info("Evaluating tagged data '{}'.".format(args.evaluate))
-        accuracy = Accuracy()
+        cx = Confusion()
         for sentence in tagged_corpus(args.evaluate):
             (tokens, tags) = zip(*sentence)
             tags_guessed = (tag for (token, tag) in tagger.tag(tokens))
-            accuracy.batch_update(tags, tags_guessed)
-        print("Accuracy: {:.04f}".format(accuracy.accuracy))
+            cx.batch_update(tags, tags_guessed)
+        print("Accuracy: {:.04f}".format(cx.accuracy))
     # else unreachable
