@@ -1,6 +1,4 @@
-#!/usr/bin/env python -O
-#
-# Copyright (c) 2014 Kyle Gorman
+# Copyright (C) 2014 Kyle Gorman
 #
 # Permission is hereby granted, free of charge, to any person obtaining a
 # copy of this software and associated documentation files (the
@@ -20,25 +18,6 @@
 # CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
 # TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 # SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-#
-# jsonable.py: mixin enabling serialization to compressed JSON
 
 
-from gzip import GzipFile
-from jsonpickle import decode, encode
-
-
-class JSONable(object):
-
-    """
-    Mixin which makes a class support `jsonpickle`
-    """
-
-    @classmethod
-    def load(cls, filename):
-        with GzipFile(filename, "r") as source:
-            return decode(source.read().decode("UTF-8"), keys=True)
-
-    def dump(self, filename):
-        with GzipFile(filename, "w") as sink:
-            sink.write(encode(self, keys=True).encode("UTF-8"))
+from .tagger import Tagger, EPOCHS, ORDER

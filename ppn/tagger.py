@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-#
 # Copyright (C) 2014 Kyle Gorman
 #
 # Permission is hereby granted, free of charge, to any person obtaining a
@@ -20,8 +18,6 @@
 # CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
 # TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 # SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-#
-# ppn.py: Perceptronix Point Never, a perceptron-backed POS tagger
 
 
 import logging
@@ -31,10 +27,8 @@ from functools import lru_cache
 
 from nltk import str2tuple
 
-from .jsonable import JSONable
-from .confusion import Accuracy
-from .decorators import IO, listify
-from .perceptron import SequenceAveragedPerceptron as SequenceClassifier
+from nlup import Accuracy, JSONable, IO, listify, \
+                 SequenceAveragedPerceptron as SequenceClassifier
 
 
 EPOCHS = 10

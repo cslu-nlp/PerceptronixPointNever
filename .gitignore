@@ -1,6 +1,7 @@
 *.py[co]
 __pycache__
 *.sh
+*.pos
 *.xlsx
 *.json.gz
 .DS_Store

@@ -7,27 +7,34 @@ tagging and chunking are as described in Ratnaparkhi 1996 and Collins 2002.
 Following Collins, the same features, including orthographic features, are
 used regardless of word frequency.
 
-PPN has been tested on CPython 3.4 and PyPy3 (2.3.1, corresponding to Python 3.2); the latter is much, much faster. It requires two third-party packages: `nltk` and `jsonpickle`; see `requirements.txt` for the versions used for testing.
+PPN has been tested on CPython 3.4 and PyPy3 (2.3.1, corresponding to Python 3.2); the latter is much, much faster. It requires three third-party packages: `nltk` and `jsonpickle` from PyPI and my own `nlup` library, residing in Github; see `requirements.txt` for the versions used for testing.
 
 Usage
 -----
 
-    usage: python -m PPN [-h] [-v] [-V] [-t TRAIN | -r READ]
-                  [-u TAG | -w WRITE | -e EVALUATE] [-O O] [-T T]
+    usage: python -m PPN [-h] [-v] [-V] (-t TRAIN | -r READ)
+                         (-u TAG | -w WRITE | -e EVALUATE) [-E EPOCHS] 
+                         [-O ORDER]
 
     Perceptronix Point Never, by Kyle Gorman
-
+    
     optional arguments:
-      -h, --help                        show this help message and exit
-      -v, --verbose                     enable verbose output
-      -V, --really-verbose              even more verbose output
-      -t TRAIN, --train TRAIN           training data
-      -r READ, --read READ              read in serialized model
-      -u TAG, --tag TAG                 tag unlabeled data
-      -w WRITE, --write WRITE           write out serialized model
-      -e EVALUATE, --evaluate EVALUATE  evaluate on labeled data
-      -O O                              Markov order (default: 2)
-      -T T                              # of epochs (default: 10)
+      -h, --help            show this help message and exit
+      -v, --verbose         enable verbose output
+      -V, --really-verbose  even more verbose output
+      -t TRAIN, --train TRAIN
+                            training data
+      -r READ, --read READ  read in serialized model
+      -u TAG, --tag TAG     tag unlabeled data
+      -w WRITE, --write WRITE
+                            write out serialized model
+      -e EVALUATE, --evaluate EVALUATE
+                            evaluate on labeled data
+      -E EPOCHS, --epochs EPOCHS
+                            # of epochs (default: 10)
+      -O ORDER, --order ORDER
+                            Markov order (default: 2)
+
 
 All inputs should be whitespace-delimited with one sentence per line.
 
