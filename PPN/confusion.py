@@ -143,12 +143,14 @@ class BinaryConfusion(ConfusionMixin):
         return self.tp + self.fp + self.fn + self.tn
 
     def update(self, truth, guess):
-        if truth == self.hit:
-            if guess == self.hit:
+        truth = bool(truth)
+        guess = bool(guess)
+        if truth:
+            if guess:
                 self.tp += 1
             else:
                 self.fn += 1
-        elif guess == self.hit:
+        elif guess:
             self.fp += 1
         else:
             self.tn += 1
