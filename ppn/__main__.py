@@ -84,6 +84,7 @@ if __name__ == "__main__":
             print(" ".join(tuple2str(wt) for wt in tagger.tag(tokens)))
     elif args.write:
         logging.info("Writing trained tagger to '{}'.".format(args.write))
+        tagger.cull()
         IO(tagger.dump)(args.write)
     elif args.evaluate:
         logging.info("Evaluating tagged data '{}'.".format(args.evaluate))
