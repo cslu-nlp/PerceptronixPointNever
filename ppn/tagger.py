@@ -155,3 +155,6 @@ class Tagger(JSONable):
     def batch_tag(self, tokens_list):
         for tokens in tokens_list:
             yield self.tag(tokens)
+
+    def cull(self):
+        self.classifier.cull()
