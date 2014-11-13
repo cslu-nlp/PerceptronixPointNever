@@ -8,6 +8,6 @@ setup(name="ppn",
       author="Kyle Gorman",
       author_email="gormanky@ohsu.edu",
       url="http://github.com/cslu-nlp/PerceptronixPointNever/",
-      install_requires=["nlup >= 0.1.0", "nltk >=3.0.0"],
-      dependency_links=["http://github.com/cslu-nlp/nlup/archive/master.zip#egg=nlup-0.1.0"],
+      install_requires=["nlup >= 0.2.0", "nltk >=3.0.0"],
+      dependency_links=["http://github.com/cslu-nlp/nlup/archive/master.zip#egg=nlup-0.2.0"],
       packages=["ppn"])
