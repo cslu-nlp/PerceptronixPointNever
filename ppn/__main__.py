@@ -93,5 +93,5 @@ if __name__ == "__main__":
             tags_guessed = (tag for (token, tag) in tagger.tag(tokens))
             cx.batch_update(tags, tags_guessed)
         print("Accuracy: " + \
-              "{1:.04f} [{0:.04f}, {2:.04f}].".format(*cx.confint))
+              "{1:.04f} [{0:.04f}, {2:.04f}].".format(cx.accuracy, *cx.confint))
     # else unreachable
