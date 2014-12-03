@@ -94,5 +94,4 @@ if __name__ == "__main__":
             cx.batch_update(tags, tags_guessed)
         print("Accuracy: {1:.4f} [{0:.4f}, {2:.4f}].".format(cx.accuracy,
                                                             *cx.confint))
-        print("Kappa: {:.4f}".format(cx.Kappa))
     # else unreachable
