@@ -23,6 +23,8 @@
 import logging
 
 from time import time
+from random import Random
+from string import punctuation
 from functools import lru_cache
 
 from nltk import str2tuple
@@ -37,7 +39,15 @@ ORDER = 2
 LPAD = ["<S1>", "<S0>"]
 RPAD = ["</S0>", "</S1>"]
 
-# helpers
+PUNCTUATION = frozenset(punctuation)
+NUMBER_WORDS = frozenset("""
+zero one two three four five six seven eight nine ten
+eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen
+nineteen
+twenty thirty fourty fifty sixty seventy eighty ninety 
+hundred thousand million billion trillion
+""".upper().split())
+
 
 
 @IO
@@ -69,6 +79,23 @@ def fstring(key, value):
     return "{}='{}'".format(key, value)
 
 
+def isnumberlike(token):
+    # remove ',' and '.'
+    token = token.replace(".", "").replace(",", "")
+    # generic digit
+    if token.isdigit():
+        return True
+    # fraction
+    if token.count("/") == 1:
+        (numerator, denominator) = token.split("/", 1)
+        if numerator.isdigit() and denominator.isdigit():
+            return True
+    # number words
+    if token in NUMBER_WORDS:
+        return True
+    return False
+
+
 @listify
 def efeats(tokens, order=ORDER):
     """
@@ -77,25 +104,34 @@ def efeats(tokens, order=ORDER):
     """
     padded_tokens = LPAD + [t.upper() for t in tokens] + RPAD
     for (i, token) in enumerate(padded_tokens[2:-2], 2):
-        feats = ["(bias)"]
+        feats = ["*bias*"]
         # adjacent tokens
         for j in range(-order, order + 1):
             feats.append(fstring("w_i{:+d}".format(j),
                                  padded_tokens[i + j]))
         # orthographic matters
         if token.isdigit():
-            feats.append("(digits)")
-        if token.istitle():
-            feats.append("(titlecase)")
-            if token.isupper():
-                feats.append("(uppercase)")
+            feats.append("*digits*")
+        else:
+            if token.islower():
+                feats.append("*lowercase*")
+            elif token.isupper():
+                feats.append("*uppercase*")
+            elif token.istitle():
+                feats.append("*titlecase*")
+        if isnumberlike(token):
+            feats.append("*numberlike*")
+        if all(char in PUNCTUATION for char in token):
+            feats.append("*punctuation*")
         if "-" in token:
-            feats.append("(hyphen)")
-        if "'" in token:
-            feats.append("(apostrophe)")
-        for i in range(1, 1 + min(len(token) - 1, 4)):
-            feats.append(fstring("prefix({})".format(i), token[:+i]))
-            feats.append(fstring("suffix({})".format(i), token[-i:]))
+            feats.append("*hyphen*")
+        #if "'" in token:
+        #    feats.append("(apostrophe)")
+        # prefixes and suffixes
+        features.append(fstring("pre1(w_i+0)", token[:1]))
+        features.append(fstring("suf3(w_i-1)", padded_tokens[i - 1][-3:]))
+        features.append(fstring("suf3(w_i+0)", token[-3:]))
+        features.append(fstring("suf3(w_i+1)", padded_tokens[i + 1][-3:]))
         yield feats
 
 
@@ -109,7 +145,7 @@ def tfeats(tags):
     >>> sorted(tfeats(tags[:1]))
     ["t_i-1='RB'"]
     >>> sorted(tfeats(tags[:3]))
-    ["t_i-1='JJ'", "t_i-2,t_i-1='DT','JJ'", "t_i-3,t_i-2,t_i-1='RB','DT','JJ'"]
+    ["t_i-1='JJ'", "t_i-2='DT'", "t_i-3='RB'", "t_i-2,t_i-1='DT','JJ'", "t_i-3,t_i-2,t_i-1='RB','DT','JJ'"]
     """
     feats = []
     if not tags:
