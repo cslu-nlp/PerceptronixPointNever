@@ -128,10 +128,10 @@ def efeats(tokens, order=ORDER):
         #if "'" in token:
         #    feats.append("(apostrophe)")
         # prefixes and suffixes
-        features.append(fstring("pre1(w_i+0)", token[:1]))
-        features.append(fstring("suf3(w_i-1)", padded_tokens[i - 1][-3:]))
-        features.append(fstring("suf3(w_i+0)", token[-3:]))
-        features.append(fstring("suf3(w_i+1)", padded_tokens[i + 1][-3:]))
+        feats.append(fstring("pre1(w_i+0)", token[:1]))
+        feats.append(fstring("suf3(w_i-1)", padded_tokens[i - 1][-3:]))
+        feats.append(fstring("suf3(w_i+0)", token[-3:]))
+        feats.append(fstring("suf3(w_i+1)", padded_tokens[i + 1][-3:]))
         yield feats
 
 
