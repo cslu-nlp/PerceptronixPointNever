@@ -1,13 +1,19 @@
 Perceptronix Point Never
 ========================
 
-Perceptronix Point Never (PPN) is an implementation of an HMM sequence 
-tagger trained using the averaged perceptron algorithm. Features for POS 
-tagging and chunking are as described in Ratnaparkhi 1996 and Collins 2002.
-Following Collins, the same features, including orthographic features, are
-used regardless of word frequency.
+Perceptronix Point Never (PPN) is an implementation of a part of speech
+tagger using a hidden Markov model, the averaged perceptron classifier,
+and a greedy decoding scheme. The classifier features are based loosely 
+on those used by Ratnaparkhi 1996 and Collins 2002. Following Collins, 
+the same features, including orthographic features, are used regardless 
+of word frequency.
 
-PPN has been tested on CPython 3.4 and PyPy3 (2.3.1, corresponding to Python 3.2); the latter is much, much faster. It requires three third-party packages: `nltk` and `jsonpickle` from PyPI and my own `nlup` library, available from Github; see `requirements.txt` for the versions used for testing.
+PPN has been tested on CPython 3.4 and PyPy3 (2.3.1, corresponding to 
+Python 3.2); the latter is much, much faster. It requires three 
+third-party packages: `nltk` and `jsonpickle` from PyPI and my own `nlup` 
+library, available from GitHub; see `requirements.txt` for the versions 
+used for testing.
+
 
 Usage
 -----
@@ -39,7 +45,7 @@ Usage
 All inputs should be whitespace-delimited with one sentence per line.
 
 Tagger training/evaluation: "token/POS-tag"
-Tagging: bare tokens (no POS tags)
+Tagging: whitespace-delimited tokens (no POS tags)
 
 For anything else, UTSL.
 

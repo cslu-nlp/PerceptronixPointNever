@@ -36,18 +36,15 @@ from nlup import Accuracy, JSONable, IO, listify, \
 EPOCHS = 10
 ORDER = 2
 
-LPAD = ["<S1>", "<S0>"]
-RPAD = ["</S0>", "</S1>"]
+DIGIT = "*DIGIT*"
 
 PUNCTUATION = frozenset(punctuation)
 NUMBER_WORDS = frozenset("""
-zero one two three four five six seven eight nine ten
-eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen
-nineteen
-twenty thirty fourty fifty sixty seventy eighty ninety 
-hundred thousand million billion trillion
+zero one two three four five six seven eight nine ten eleven twelve 
+thirteen fourteen fifteen sixteen seventeen eighteen nineteen twenty 
+thirty fourty fifty sixty seventy eighty ninety hundred thousand million 
+billion trillion quadrillion
 """.upper().split())
-
 
 
 @IO
@@ -71,6 +68,7 @@ def untagged_corpus(filename):
         for line in source:
             yield line.split()
 
+
 # feature extractors
 
 
@@ -80,6 +78,9 @@ def fstring(key, value):
 
 
 def isnumberlike(token):
+    """
+    Feature incporating a relatively broad definition of "numberhood"
+    """
     # remove ',' and '.'
     token = token.replace(".", "").replace(",", "")
     # generic digit
@@ -97,42 +98,89 @@ def isnumberlike(token):
 
 
 @listify
-def efeats(tokens, order=ORDER):
+def efeats_now(token, ftoken):
+    """
+    Emission features associated with the current observation
+    """
+    yield fstring("w_i", ftoken)
+    # no other features will match
+    if ftoken == DIGIT:
+        return
+    else:
+        # casing
+        if token.islower():
+            yield "*lowercase*"
+        elif token.isupper():
+            yield "*uppercase*"
+        elif token.istitle():
+            yield "*titlecase*"
+        # punctuation
+        if all(char in PUNCTUATION for char in ftoken):
+            yield "*punctuation*"
+        # numberlikeness
+        elif isnumberlike(ftoken):
+            yield "*numberlike*"
+        else:
+            # word-like
+            if "-" in ftoken:
+                yield "*hyphenated*"
+            #if "'" in token:
+            #   yield "*apostrophe*"
+            yield fstring("pre1(w_i)", ftoken[0])
+            yield fstring("suf3(w_i)", ftoken[-3:])
+
+
+@listify
+def efeats_earlier(ftokens, i):
+    """
+    Emission features associated with earlier observations
+    """
+    # first token
+    if i == 0:
+        yield "*first-token*"
+        return
+    # otherwise
+    yield fstring("w_i-1", ftokens[i - 1])
+    if ftokens[i - 1] != DIGIT:
+        yield fstring("suf3(w_i-1)", ftokens[i - 1][-3:])
+    # second token
+    if i == 1:
+        yield "*second-token*"
+    else:
+        yield fstring("w_i-2", ftokens[i - 2])
+
+
+@listify
+def efeats_later(ftokens, i):
+    """ 
+    Emission features associated with later observations
+    """
+    # last word
+    if i == len(ftokens) - 1:
+        yield "*ultimate-token*"
+        return
+    # otherwise
+    yield fstring("w_i+1", ftokens[i + 1])
+    if ftokens[i + 1] != DIGIT:
+        yield fstring("suf3(w_i+1)", ftokens[i + 1][-3:])
+    # penultimate
+    if i == len(ftokens) - 2:
+        yield "*penultimate-token*"
+    else:
+        yield fstring("w_i+2", ftokens[i + 2])
+
+
+@listify
+def efeats(tokens):
     """
     Compute list of lists of emission features for each token in 
     the `tokens` iterator
     """
-    padded_tokens = LPAD + [t.upper() for t in tokens] + RPAD
-    for (i, token) in enumerate(padded_tokens[2:-2], 2):
-        feats = ["*bias*"]
-        # adjacent tokens
-        for j in range(-order, order + 1):
-            feats.append(fstring("w_i{:+d}".format(j),
-                                 padded_tokens[i + j]))
-        # orthographic matters
-        if token.isdigit():
-            feats.append("*digits*")
-        else:
-            if token.islower():
-                feats.append("*lowercase*")
-            elif token.isupper():
-                feats.append("*uppercase*")
-            elif token.istitle():
-                feats.append("*titlecase*")
-        if isnumberlike(token):
-            feats.append("*numberlike*")
-        if all(char in PUNCTUATION for char in token):
-            feats.append("*punctuation*")
-        if "-" in token:
-            feats.append("*hyphen*")
-        #if "'" in token:
-        #    feats.append("(apostrophe)")
-        # prefixes and suffixes
-        feats.append(fstring("pre1(w_i+0)", token[:1]))
-        feats.append(fstring("suf3(w_i-1)", padded_tokens[i - 1][-3:]))
-        feats.append(fstring("suf3(w_i+0)", token[-3:]))
-        feats.append(fstring("suf3(w_i+1)", padded_tokens[i + 1][-3:]))
-        yield feats
+    utokens = ["*DIGIT*" if token.isdigit() else token for token in tokens]
+    ftokens = [token.upper() for token in tokens]
+    for (i, (utoken, ftoken)) in enumerate(zip(utokens, ftokens)):
+        yield ["*bias*"] + efeats_now(utoken, ftoken) + \
+              efeats_earlier(ftokens, i) + efeats_later(ftokens, i)
 
 
 def tfeats(tags):
@@ -142,10 +190,14 @@ def tfeats(tags):
 
     >>> d = 3
     >>> tags = "RB DT JJ NN".split()
-    >>> sorted(tfeats(tags[:1]))
+    >>> tfeats([])
+    []
+    >>> tfeats(tags[:1])
     ["t_i-1='RB'"]
-    >>> sorted(tfeats(tags[:3]))
-    ["t_i-1='JJ'", "t_i-2='DT'", "t_i-3='RB'", "t_i-2,t_i-1='DT','JJ'", "t_i-3,t_i-2,t_i-1='RB','DT','JJ'"]
+    >>> tfeats(tags[:2])
+    ["t_i-1='DT'", "t_i-2='RB'", "t_i-2,t_i-1='RB','DT'"]
+    >>> tfeats(tags[:3])
+    ["t_i-1='JJ'", "t_i-2='DT'", "t_i-2,t_i-1='DT','JJ'", "t_i-3='RB'", "t_i-3,t_i-2,t_i-1='RB','DT','JJ'"]
     """
     feats = []
     if not tags:
@@ -154,6 +206,7 @@ def tfeats(tags):
     tfeat_key = "t_i-{}".format(i)
     feats.append(fstring(tfeat_key, tags[-i]))
     for i in range(2, 1 + len(tags)):
+        feats.append(fstring("t_i-{}".format(i), tags[-i]))
         tfeat_key = "t_i-{},{}".format(i, tfeat_key)
         vstring = ",".join("'{}'".format(tag) for tag in tags[-i:])
         feats.append("{}={}".format(tfeat_key, vstring))
