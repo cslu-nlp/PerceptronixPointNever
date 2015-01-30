@@ -176,7 +176,7 @@ def efeats(tokens):
     Compute list of lists of emission features for each token in 
     the `tokens` iterator
     """
-    utokens = ["*DIGIT*" if token.isdigit() else token for token in tokens]
+    utokens = [DIGIT if token.isdigit() else token for token in tokens]
     ftokens = [token.upper() for token in tokens]
     for (i, (utoken, ftoken)) in enumerate(zip(utokens, ftokens)):
         yield ["*bias*"] + efeats_now(utoken, ftoken) + \
