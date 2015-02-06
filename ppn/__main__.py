@@ -68,30 +68,28 @@ if __name__ == "__main__":
         argparser.error("No outputs specified.")
     # input
     tagger = None
-    if args.train:
-        logging.info("Training on labeled data '{}'.".format(args.train))
-        sentences = tagged_corpus(args.train)
-        tagger = Tagger(epochs=args.epochs, order=args.order,
-                        sentences=sentences)
-    elif args.read:
+    if args.read:
         logging.info("Reading pretrained tagger '{}'.".format(args.read))
         tagger = IO(Tagger.load)(args.read)
+    elif args.train:
+        logging.info("Training on labeled data '{}'.".format(args.train))
+        tagger = Tagger(order=args.order)
+        tagger.fit(tagged_corpus(args.train), args.epochs)
     # else unreachable
     # output
-    if args.tag:
-        logging.info("Tagging untagged data '{}'.".format(args.tag))
-        for tokens in untagged_corpus(args.tag):
-            print(" ".join(tuple2str(wt) for wt in tagger.tag(tokens)))
-    elif args.write:
+    if args.write:
         logging.info("Writing trained tagger to '{}'.".format(args.write))
         IO(tagger.dump)(args.write)
+    elif args.tag:
+        logging.info("Tagging untagged data '{}'.".format(args.tag))
+        for tokens in untagged_corpus(args.tag):
+            print(str(tagger.tag(tokens)))
     elif args.evaluate:
         logging.info("Evaluating tagged data '{}'.".format(args.evaluate))
         cx = Confusion()
         for sentence in tagged_corpus(args.evaluate):
-            (tokens, tags) = zip(*sentence)
-            tags_guessed = (tag for (token, tag) in tagger.tag(tokens))
-            cx.batch_update(tags, tags_guessed)
+            cx.batch_update(sentence.tags,
+                            tagger.tag(sentence.tokens).tags)
         print("Accuracy: {:.4f} [{:.4f}, {:.4f}].".format(cx.accuracy,
                                                           *cx.confint))
     # else unreachable

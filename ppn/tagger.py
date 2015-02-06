@@ -29,8 +29,8 @@ from functools import lru_cache
 
 from nltk import str2tuple
 
-from nlup import Accuracy, JSONable, IO, listify, \
-                 SequenceAveragedPerceptron as SequenceClassifier
+from nlup import listify, tupleify, Accuracy, JSONable, IO, \
+                 SequenceAveragedPerceptron, TaggedSentence
 
 
 EPOCHS = 10
@@ -48,18 +48,16 @@ billion trillion quadrillion
 
 
 @IO
-@listify
 def tagged_corpus(filename):
     """
     Read tagged corpus into memory
     """
     with open(filename, "r") as source:
         for line in source:
-            yield [str2tuple(wt) for wt in line.split()]
+            yield TaggedSentence.from_str(line)
 
 
 @IO
-@listify
 def untagged_corpus(filename):
     """
     Read tokenized, but untagged, corpus into memory
@@ -97,7 +95,7 @@ def isnumberlike(token):
     return False
 
 
-@listify
+@tupleify
 def efeats_now(token, ftoken):
     """
     Emission features associated with the current observation
@@ -130,7 +128,7 @@ def efeats_now(token, ftoken):
             yield fstring("suf3(w_i)", ftoken[-3:])
 
 
-@listify
+@tupleify
 def efeats_earlier(ftokens, i):
     """
     Emission features associated with earlier observations
@@ -150,7 +148,7 @@ def efeats_earlier(ftokens, i):
         yield fstring("w_i-2", ftokens[i - 2])
 
 
-@listify
+@tupleify
 def efeats_later(ftokens, i):
     """ 
     Emission features associated with later observations
@@ -170,7 +168,7 @@ def efeats_later(ftokens, i):
         yield fstring("w_i+2", ftokens[i + 2])
 
 
-@listify
+@tupleify
 def efeats(tokens):
     """
     Compute list of lists of emission features for each token in 
@@ -179,10 +177,10 @@ def efeats(tokens):
     utokens = [DIGIT if token.isdigit() else token for token in tokens]
     ftokens = [token.upper() for token in tokens]
     for (i, (utoken, ftoken)) in enumerate(zip(utokens, ftokens)):
-        yield ["*bias*"] + efeats_now(utoken, ftoken) + \
+        yield ("*bias*",) + efeats_now(utoken, ftoken) + \
               efeats_earlier(ftokens, i) + efeats_later(ftokens, i)
 
-
+@tupleify
 def tfeats(tags):
     """
     Compute a list of features for a single token using an iterator of
@@ -219,26 +217,20 @@ class Tagger(JSONable):
     Part-of-speech tagger, backed by a classifier
     """
 
-    def __init__(self, *, tfeats_fnc=tfeats, order=ORDER, epochs=EPOCHS,
-                 sentences):
-        self.classifier = SequenceClassifier(tfeats_fnc=tfeats_fnc,
-                                             order=order)
-        if sentences:
-            self.fit(sentences, epochs=epochs)
+    def __init__(self, *, tfeats_fnc=tfeats, order=ORDER):
+        self.tagger = SequenceAveragedPerceptron(tfeats_fnc=tfeats_fnc,
+                                                     order=order)
 
     def fit(self, sentences, epochs=EPOCHS):
         XX = []
         YY = []
         for sentence in sentences:
-            (tokens, tags) = zip(*sentence)
-            XX.append(efeats(tokens))
-            YY.append(list(tags))
-        self.classifier.fit(XX, YY, epochs)
+            XX.append(efeats(sentence.tokens))
+            YY.append(sentence.tags)
+        self.tagger.fit(XX, YY, epochs)
 
-    @listify
     def tag(self, tokens):
-        xx = efeats(tokens)
-        return zip(tokens, self.classifier.predict(xx))
+        return TaggedSentence(tokens, self.tagger.predict(efeats(tokens)))
 
     @listify
     def batch_tag(self, tokens_list):
