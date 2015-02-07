@@ -217,20 +217,21 @@ class Tagger(JSONable):
     Part-of-speech tagger, backed by a classifier
     """
 
-    def __init__(self, *, tfeats_fnc=tfeats, order=ORDER):
-        self.tagger = SequenceAveragedPerceptron(tfeats_fnc=tfeats_fnc,
-                                                     order=order)
+    def __init__(self, efeats_fnc=efeats, tfeats_fnc=tfeats, order=ORDER):
+        self.tagger = SequenceAveragedPerceptron(efeats_fnc, tfeats_fnc, 
+                                                 order)
 
     def fit(self, sentences, epochs=EPOCHS):
-        XX = []
+        sentences = list(sentences)
         YY = []
+        XX = []
         for sentence in sentences:
-            XX.append(efeats(sentence.tokens))
             YY.append(sentence.tags)
-        self.tagger.fit(XX, YY, epochs)
+            XX.append(sentence.tokens)
+        self.tagger.fit(YY, XX, epochs)
 
     def tag(self, tokens):
-        return TaggedSentence(tokens, self.tagger.predict(efeats(tokens)))
+        return TaggedSentence(tokens, self.tagger.predict(tokens))
 
     @listify
     def batch_tag(self, tokens_list):
