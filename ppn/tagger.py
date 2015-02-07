@@ -218,7 +218,7 @@ class Tagger(JSONable):
     """
 
     def __init__(self, efeats_fnc=efeats, tfeats_fnc=tfeats, order=ORDER):
-        self.tagger = SequenceAveragedPerceptron(efeats_fnc, tfeats_fnc, 
+        self.tagger = SequenceAveragedPerceptron(efeats_fnc, tfeats_fnc,
                                                  order)
 
     def fit(self, sentences, epochs=EPOCHS):
