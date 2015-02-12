@@ -34,7 +34,7 @@ LOGGING_FMT = "%(message)s"
 
 
 from argparse import ArgumentParser
-argparser = ArgumentParser(prog="python -m PPN",
+argparser = ArgumentParser(prog="python -m perceptronixpointnever",
                     description="Perceptronix Point Never, by Kyle Gorman")
 argparser.add_argument("-v", "--verbose", action="store_true",
                        help="enable verbose output")

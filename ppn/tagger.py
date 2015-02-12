@@ -45,6 +45,10 @@ zero one two three four five six seven eight nine ten eleven twelve
 thirteen fourteen fifteen sixteen seventeen eighteen nineteen twenty 
 thirty fourty fifty sixty seventy eighty ninety hundred thousand million 
 billion trillion quadrillion
+zeros ones twos threes fours fives sixs sevens eights nines tens elevens 
+twelves thirteens fourteens fifteens sixteens seventeens eighteens 
+nineteens twenties thirties fourties fifties sixties seventies eighties 
+nineties hundreds thousands millions billions trillions quadrillions
 """.upper().split())
 
 
@@ -72,7 +76,8 @@ def isnumberlike(token):
         if numerator.isdigit() and denominator.isdigit():
             return True
     # number words
-    if token in NUMBER_WORDS:
+    if token in NUMBER_WORDS or all(part in NUMBER_WORDS for part in
+                                    token.split("-")):
         return True
     return False
 
