@@ -29,8 +29,9 @@ from functools import lru_cache
 
 from nltk import str2tuple
 
-from nlup import listify, tupleify, Accuracy, JSONable, IO, \
-                 SequenceAveragedPerceptron, TaggedSentence
+from nlup import listify, tupleify, untagged_corpus, tagged_corpus,  \
+                 Accuracy, JSONable, IO, SequenceAveragedPerceptron, \
+                 TaggedSentence
 
 
 EPOCHS = 10
@@ -46,25 +47,6 @@ thirty fourty fifty sixty seventy eighty ninety hundred thousand million
 billion trillion quadrillion
 """.upper().split())
 
-
-@IO
-def tagged_corpus(filename):
-    """
-    Read tagged corpus into memory
-    """
-    with open(filename, "r") as source:
-        for line in source:
-            yield TaggedSentence.from_str(line)
-
-
-@IO
-def untagged_corpus(filename):
-    """
-    Read tokenized, but untagged, corpus into memory
-    """
-    with open(filename, "r") as source:
-        for line in source:
-            yield line.split()
 
 
 # feature extractors
