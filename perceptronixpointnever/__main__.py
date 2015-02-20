@@ -83,7 +83,7 @@ elif args.evaluate:
     logging.info("Evaluating tagged data '{}'.".format(args.evaluate))
     cx = Confusion()
     for sentence in IO(tagged_corpus)(args.evaluate):
-    cx.batch_update(sentence.tags, tagger.tag(sentence.tokens).tags)
+        cx.batch_update(sentence.tags, tagger.tag(sentence.tokens).tags)
     print("Accuracy: {:.4f} [{:.4f}, {:.4f}].".format(cx.accuracy,
                                                       *cx.confint))
 # else unreachable

@@ -63,7 +63,7 @@ def fstring(key, value):
 
 def isnumberlike(token):
     """
-    Feature incporating a relatively broad definition of "numberhood"
+    True iff the token matches a relatively broad definition of numberhood
     """
     # remove ',' and '.'
     token = token.replace(".", "").replace(",", "")
