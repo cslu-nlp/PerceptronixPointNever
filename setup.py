@@ -2,7 +2,7 @@
 
 from setuptools import setup
 
-setup(name="Perceptronix Point Never",
+setup(name="PerceptronixPointNever",
       version="1.1",
       description="Perceptronix Point Never, a POS tagger",
       author="Kyle Gorman",
