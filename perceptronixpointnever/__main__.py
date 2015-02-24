@@ -28,7 +28,7 @@ from nltk import tuple2str
 
 from nlup.decorators import IO
 from nlup.confusion import Confusion
-from nlup.reader import tagged_corpus, untagged_corpus
+from nlup.readers import tagged_corpus, untagged_corpus
 
 from .tagger import Tagger, EPOCHS, ORDER
 
