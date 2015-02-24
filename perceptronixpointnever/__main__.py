@@ -20,19 +20,22 @@
 # SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 
+import logging
+
+from argparse import ArgumentParser
+
 from nltk import tuple2str
 
-from nlup.confusion import Confusion
 from nlup.decorators import IO
+from nlup.confusion import Confusion
+from nlup.reader import tagged_corpus, untagged_corpus
 
-from .tagger import Tagger, EPOCHS, ORDER, tagged_corpus, untagged_corpus
+from .tagger import Tagger, EPOCHS, ORDER
 
-import logging
 
 LOGGING_FMT = "%(message)s"
 
 
-from argparse import ArgumentParser
 argparser = ArgumentParser(prog="python -m perceptronixpointnever",
                     description="Perceptronix Point Never, by Kyle Gorman")
 argparser.add_argument("-v", "--verbose", action="store_true",

@@ -22,16 +22,14 @@
 
 import logging
 
-from time import time
 from random import Random
 from string import punctuation
 from functools import lru_cache
 
 from nltk import str2tuple
 
-from nlup import listify, tupleify, untagged_corpus, tagged_corpus,  \
-                 Accuracy, JSONable, IO, SequenceAveragedPerceptron, \
-                 TaggedSentence
+from nlup import listify, tupleify, Accuracy, JSONable, IO, \
+                 SequenceAveragedPerceptron, TaggedSentence
 
 
 EPOCHS = 10
