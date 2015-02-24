@@ -1,4 +1,4 @@
-# Copyright (C) 2014 Kyle Gorman
+# Copyright (C) 2014-2015 Kyle Gorman
 #
 # Permission is hereby granted, free of charge, to any person obtaining a
 # copy of this software and associated documentation files (the
@@ -65,16 +65,12 @@ def isnumberlike(token):
     """
     True iff the token matches a relatively broad definition of numberhood
     """
-    # remove ',' and '.'
-    token = token.replace(".", "").replace(",", "")
+    # remove /[.,/]/
+    token = token.replace(".", "").replace(",", "").replace("/", "")
     # generic digit
     if token.isdigit():
         return True
     # fraction
-    if token.count("/") == 1:
-        (numerator, denominator) = token.split("/", 1)
-        if numerator.isdigit() and denominator.isdigit():
-            return True
     # number words
     if token in NUMBER_WORDS or all(part in NUMBER_WORDS for part in
                                     token.split("-")):
