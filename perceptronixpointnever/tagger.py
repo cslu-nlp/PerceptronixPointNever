@@ -28,27 +28,16 @@ from functools import lru_cache
 
 from nltk import str2tuple
 
-from nlup import listify, tupleify, Accuracy, JSONable, IO, \
-                 SequenceAveragedPerceptron, TaggedSentence
+from nlup import listify, tupleify, isnumberlike, Accuracy, JSONable, \
+                 IO, SequenceAveragedPerceptron, TaggedSentence
 
 
 EPOCHS = 10
 ORDER = 2
 
-DIGIT = "*DIGIT*"
-
 PUNCTUATION = frozenset(punctuation)
-NUMBER_WORDS = frozenset("""
-zero one two three four five six seven eight nine ten eleven twelve 
-thirteen fourteen fifteen sixteen seventeen eighteen nineteen twenty 
-thirty fourty fifty sixty seventy eighty ninety hundred thousand million 
-billion trillion quadrillion
-zeros ones twos threes fours fives sixs sevens eights nines tens elevens 
-twelves thirteens fourteens fifteens sixteens seventeens eighteens 
-nineteens twenties thirties fourties fifties sixties seventies eighties 
-nineties hundreds thousands millions billions trillions quadrillions
-""".upper().split())
 
+DIGIT = "*DIGIT*"
 
 
 # feature extractors
@@ -58,22 +47,6 @@ nineties hundreds thousands millions billions trillions quadrillions
 def fstring(key, value):
     return "{}='{}'".format(key, value)
 
-
-def isnumberlike(token):
-    """
-    True iff the token matches a relatively broad definition of numberhood
-    """
-    # remove /[.,/]/
-    token = token.replace(".", "").replace(",", "").replace("/", "")
-    # generic digit
-    if token.isdigit():
-        return True
-    # fraction
-    # number words
-    if token in NUMBER_WORDS or all(part in NUMBER_WORDS for part in
-                                    token.split("-")):
-        return True
-    return False
 
 
 @tupleify
