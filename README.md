@@ -42,11 +42,6 @@ Usage
                             Markov order (default: 2)
 
 
-All inputs should be whitespace-delimited with one sentence per line.
-
-Tagger training/evaluation: "token/POS-tag"
-Tagging: whitespace-delimited tokens (no POS tags)
-
 For anything else, UTSL.
 
 License
