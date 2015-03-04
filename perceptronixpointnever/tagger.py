@@ -176,12 +176,17 @@ class Tagger(JSONable):
                                                  order)
 
     def fit(self, sentences, epochs=EPOCHS):
-        sentences = list(sentences)
+        # collect data
         YY = []
         XX = []
+        tagset = set()
         for sentence in sentences:
             YY.append(sentence.tags)
+            tagset.update(sentence.tags)
             XX.append(sentence.tokens)
+        # explicitly set class labels
+        self.tagger.register_classes(tagset)
+        # run training
         self.tagger.fit(YY, XX, epochs)
 
     def tag(self, tokens):
