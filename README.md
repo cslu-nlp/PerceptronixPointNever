@@ -42,6 +42,8 @@ Usage
                             Markov order (default: 2)
 
 
+The included `PPN-wsj.json.gz` is a tagging model trained on the Wall St. Journal portion of the Penn Treebank.
+
 For anything else, UTSL.
 
 License
