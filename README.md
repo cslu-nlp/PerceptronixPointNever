@@ -51,6 +51,13 @@ License
 
 MIT License (BSD-like); see source.
 
+Citation
+--------
+
+If you use Perceptronix Point Never in your research, please consider linking readers to this repository and/or directing them to the following paper, which describes the tagger and reports an evaluation on the "standard split":
+
+K. Gorman, S. Bedrick, G. Kiss, E. Morley,. R. Ingham, M. Mohammed, K. Papadakis, and J. van Santen. 2015. Automated morphological analysis of clincial languaeg samples. In _CLPsych_, 108-116.
+
 What's with the name?
 ---------------------
 
